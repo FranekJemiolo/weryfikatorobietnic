@@ -45,3 +45,27 @@ def test_get_promise_status_fallback_mock() -> None:
     assert data["llm_alignment_status"] in ["W_PELNI", "CZESCIOWO", "SPRZECZNA", "BRAK_POWIAZANIA"]
     assert data["time_elapsed_days"] > 0
     assert data["current_stage"]
+
+
+def test_get_mp_daily_activity() -> None:
+    """Weryfikuje pobieranie historii aktywności posła pod kątem heatmapy."""
+    response = client.get("/api/v1/mps/42/daily-activity")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert isinstance(data, list)
+    assert len(data) == 30
+
+    first_day = data[0]
+    assert "date" in first_day
+    assert "total_votes" in first_day
+    assert "attendance_rate" in first_day
+    assert "rebellion_rate" in first_day
+    assert first_day["dominant_status"] in [
+        "LOYAL",
+        "REBELLIOUS",
+        "ABSENT",
+        "MIXED",
+        "NO_VOTES",
+    ]
+

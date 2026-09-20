@@ -41,6 +41,22 @@ class PromiseStatusResponse(BaseModel):
     )
 
 
+class MPDailyActivity(BaseModel):
+    """Zagregowana aktywność posła w pojedynczym dniu posiedzeń Sejmu."""
+
+    date: str = Field(..., description="Data w formacie YYYY-MM-DD")
+    total_votes: int = Field(..., ge=0, description="Łączna liczba głosowań przeprowadzonych tego dnia")
+    attendance_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Wskaźnik obecności posła (0.0 do 1.0)"
+    )
+    rebellion_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Odsetek głosowań wbrew większości macierzystego klubu (0.0 do 1.0)"
+    )
+    dominant_status: Literal["LOYAL", "REBELLIOUS", "ABSENT", "MIXED", "NO_VOTES"] = Field(
+        ..., description="Kategoryczny status podsumowujący postawę posła"
+    )
+
+
 # Baza przykładowych zamockowanych odpowiedzi pod testy frontendu PWA
 MOCK_PROMISES_STATUS: dict[str, dict[str, Any]] = {
     "KO-100K-042": {
@@ -166,6 +182,74 @@ def get_promise_status(promise_id: str) -> PromiseStatusResponse:
         divergence_details="Wstępna analiza tekstu druku sejmowego wykazuje częściową zbieżność.",
         source_print_number="Druk nr 105",
     )
+
+
+@app.get(
+    "/api/v1/mps/{mp_id}/daily-activity",
+    response_model=list[MPDailyActivity],
+    tags=["Posłowie"],
+    summary="Pobiera dzienną historię aktywności, frekwencji i zgodności posła z klubem",
+)
+def get_mp_daily_activity(mp_id: str) -> list[MPDailyActivity]:
+    """Zwraca zagregowaną aktywność posła dzień po dniu z ostatnich posiedzeń Sejmu.
+
+    Udostępnia wskaźnik obecności oraz wskaźnik buntu (rebellion rate) do renderowania
+    na tablicy kontrybucji (heatmapie). W obecnej fazie serwuje ustrukturyzowany zbiór
+    testowy, odzwierciedlający kalendarz obrad Sejmu RP X kadencji.
+    """
+    from datetime import date, timedelta
+
+    activities: list[MPDailyActivity] = []
+    base_date = date.today()
+
+    for i in range(29, -1, -1):
+        day_date = base_date - timedelta(days=i)
+        date_str = day_date.isoformat()
+        weekday = day_date.weekday()  # 0=Pn, 4=Pt, 5=So, 6=Nd
+
+        # Dni posiedzeń plenarnych (najczęściej środa-piątek)
+        is_sitting = weekday in (2, 3, 4) and (i % 2 == 0)
+
+        if not is_sitting:
+            activities.append(
+                MPDailyActivity(
+                    date=date_str,
+                    total_votes=0,
+                    attendance_rate=0.0,
+                    rebellion_rate=0.0,
+                    dominant_status="NO_VOTES",
+                )
+            )
+        else:
+            status: Literal["LOYAL", "REBELLIOUS", "ABSENT", "MIXED", "NO_VOTES"]
+            if i % 7 == 0:
+                status = "REBELLIOUS"
+                att = 0.95
+                reb = 0.42
+            elif i % 5 == 0:
+                status = "MIXED"
+                att = 0.88
+                reb = 0.15
+            elif i % 11 == 0:
+                status = "ABSENT"
+                att = 0.20
+                reb = 0.0
+            else:
+                status = "LOYAL"
+                att = 1.0
+                reb = 0.0
+
+            activities.append(
+                MPDailyActivity(
+                    date=date_str,
+                    total_votes=24,
+                    attendance_rate=att,
+                    rebellion_rate=reb,
+                    dominant_status=status,
+                )
+            )
+
+    return activities
 
 
 @app.get("/api/v1/sejm/live-status", tags=["Sejm"])
