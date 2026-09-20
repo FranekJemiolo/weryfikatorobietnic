@@ -1,10 +1,11 @@
 """Schematy walidacji danych i ustrukturyzowanych odpowiedzi modeli LLM.
 
-Definiuje typy zwracane przez moduł ewaluacji zgodności projektów ustaw z obietnicami.
+Definiuje typy zwracane przez moduł ewaluacji zgodności projektów ustaw z obietnicami
+zgodnie z kontraktem Structured Outputs (JSON Schema).
 """
 
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,11 +13,10 @@ from pydantic import BaseModel, ConfigDict, Field
 class AlignmentStatus(StrEnum):
     """Znormalizowany status zgodności procedowanego projektu z obietnicą wyborczą."""
 
-    W_PELNI_ZREALIZOWANA = "W_PELNI_ZREALIZOWANA"
-    CZESCIOWO_ZREALIZOWANA = "CZESCIOWO_ZREALIZOWANA"
-    ZMIENIONA_KONCEPCJA = "ZMIENIONA_KONCEPCJA"
+    W_PELNI = "W_PELNI"
+    CZESCIOWO = "CZESCIOWO"
     SPRZECZNA = "SPRZECZNA"
-    BRAK_ZWIAZKU = "BRAK_ZWIAZKU"
+    BRAK_POWIAZANIA = "BRAK_POWIAZANIA"
 
 
 class PromiseModel(BaseModel):
@@ -36,35 +36,50 @@ class PromiseModel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class EvaluationResult(BaseModel):
-    """Ustrukturyzowany wynik ewaluacji wygenerowany przez model LLM (Structured Output)."""
+class PromiseEvaluation(BaseModel):
+    """Ścisły kontrakt wyjściowy ewaluatora LLM (Structured Outputs)."""
 
-    summary_pl: str = Field(
-        ...,
-        description="Zwięzłe (maksymalnie 3 zdania), bezstronne podsumowanie wpływu projektu.",
-        max_length=600,
+    promise_id: str = Field(..., description="ID obietnicy z bazy referencyjnej.")
+    project_id: str = Field(..., description="ID druku sejmowego lub procesu ustawy.")
+    alignment_status: Literal["W_PELNI", "CZESCIOWO", "SPRZECZNA", "BRAK_POWIAZANIA"] = Field(
+        ..., description="Kategoryczna ocena realizacji obietnicy."
     )
-    alignment_status: AlignmentStatus = Field(
-        ...,
-        description="Klasyfikacja stopnia realizacji obietnicy.",
+    justification: str = Field(
+        ..., description="Krótkie, jedno- do dwuzdaniowe bezstronne uzasadnienie decyzji."
     )
-    alignment_score: int = Field(
-        ...,
-        ge=0,
-        le=100,
-        description="Punktowa ocena zgodności w skali od 0 do 100.",
-    )
-    divergence_analysis: str | None = Field(
+    divergence_details: str | None = Field(
         default=None,
-        description="Precyzyjne wykazanie różnic w stosunku do pierwotnych założeń.",
+        description="Jeśli status to CZESCIOWO lub SPRZECZNA, precyzyjnie wskaż różnice i wyłączenia.",
     )
-    budget_impact_summary: str | None = Field(
-        default=None,
-        description="Podsumowanie wpływu na budżet państwa na podstawie Oceny Skutków Regulacji (OSR).",
+    confidence_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Pewność modelu od 0.0 do 1.0. Wyniki poniżej 0.7 wymagają weryfikacji manualnej.",
     )
     evaluated_provisions: list[str] = Field(
         default_factory=list,
-        description="Lista kluczowych artykułów/ustępów projektu, które poddano analizie.",
+        description="Lista artykułów i ustępów ustawy, na podstawie których dokonano oceny.",
     )
 
     model_config = ConfigDict(extra="forbid")
+
+    @property
+    def alignment_score(self) -> int:
+        """Konwertuje status kategoryczny na punktację w skali 0-100."""
+        score_map = {
+            "W_PELNI": 100,
+            "CZESCIOWO": 50,
+            "SPRZECZNA": 0,
+            "BRAK_POWIAZANIA": 0,
+        }
+        return score_map.get(self.alignment_status, 0)
+
+    @property
+    def requires_manual_review(self) -> bool:
+        """Wskazuje, czy rekord wymaga przeglądu przez analityka z powodu niskiej pewności."""
+        return self.confidence_score < 0.70
+
+
+# Alias kompatybilności wstecznej
+EvaluationResult = PromiseEvaluation

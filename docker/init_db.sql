@@ -156,17 +156,40 @@ CREATE INDEX IF NOT EXISTS idx_docs_associated ON downloaded_documents(term, ass
 CREATE INDEX IF NOT EXISTS idx_docs_hash ON downloaded_documents(sha256_hash);
 
 -- ------------------------------------------------------------------------------
--- 6. Ewaluacja LLM i Analiza Zgodności
+-- 7. Wyodrębnione Przepisy Ustawy (Legal AST: Artykuły, Ustępy, Kontekst)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS legislative_provisions (
+    id SERIAL PRIMARY KEY,
+    process_id VARCHAR(100) NOT NULL REFERENCES legislative_processes(process_id) ON DELETE CASCADE,
+    print_number VARCHAR(50),
+    section VARCHAR(255),  -- Dział
+    chapter VARCHAR(255),  -- Rozdział
+    article VARCHAR(50) NOT NULL, -- np. "Art. 5"
+    paragraph VARCHAR(50), -- np. "ust. 2"
+    point VARCHAR(50),     -- np. "pkt 1"
+    provision_text TEXT NOT NULL,
+    context_path TEXT NOT NULL, -- np. "Rozdział 2: Podatki > Art. 5 ust. 2"
+    embedding_vector JSONB, -- Wektor embeddingu [float, ...]
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_provisions_process ON legislative_provisions(process_id);
+CREATE INDEX IF NOT EXISTS idx_provisions_article ON legislative_provisions(process_id, article);
+
+-- ------------------------------------------------------------------------------
+-- 8. Ewaluacja LLM i Analiza Zgodności (Fakty i Structured Outputs)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS legislative_evaluations (
     id SERIAL PRIMARY KEY,
     promise_id VARCHAR(100) NOT NULL REFERENCES electoral_promises(promise_id) ON DELETE RESTRICT,
     process_id VARCHAR(100) NOT NULL REFERENCES legislative_processes(process_id) ON DELETE CASCADE,
-    alignment_status VARCHAR(50) NOT NULL, -- W_PELNI_ZREALIZOWANA, CZESCIOWO_ZREALIZOWANA, ZMIENIONA_KONCEPCJA, SPRZECZNA
+    alignment_status VARCHAR(50) NOT NULL, -- W_PELNI, CZESCIOWO, SPRZECZNA, BRAK_POWIAZANIA
     alignment_score INT NOT NULL CHECK (alignment_score BETWEEN 0 AND 100),
-    summary_pl TEXT NOT NULL,
-    divergence_analysis TEXT,
-    budget_impact_summary TEXT,
+    justification TEXT NOT NULL,
+    divergence_details TEXT,
+    confidence_score FLOAT NOT NULL DEFAULT 1.0 CHECK (confidence_score BETWEEN 0.0 AND 1.0),
+    requires_manual_review BOOLEAN NOT NULL DEFAULT FALSE,
+    evaluated_provisions JSONB DEFAULT '[]'::jsonb,
     model_name VARCHAR(100) NOT NULL,
     evaluated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     metadata JSONB DEFAULT '{}'::jsonb
@@ -175,6 +198,7 @@ CREATE TABLE IF NOT EXISTS legislative_evaluations (
 CREATE INDEX IF NOT EXISTS idx_eval_promise ON legislative_evaluations(promise_id);
 CREATE INDEX IF NOT EXISTS idx_eval_process ON legislative_evaluations(process_id);
 CREATE INDEX IF NOT EXISTS idx_eval_status ON legislative_evaluations(alignment_status);
+CREATE INDEX IF NOT EXISTS idx_eval_review ON legislative_evaluations(requires_manual_review);
 
 -- ------------------------------------------------------------------------------
 -- Dane początkowe (Seed Data)
