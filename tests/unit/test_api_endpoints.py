@@ -46,13 +46,15 @@ def setup_test_db() -> Generator[None, None, None]:
 
 
 def test_health_check() -> None:
-    """Weryfikuje endpoint sprawdzania stanu aplikacji."""
+    """Weryfikuje endpoint sprawdzania stanu aplikacji oraz nagłówki diagnostyczne middleware."""
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert "status" in data
     assert "database_connected" in data
-    assert data["version"] == "0.2.0"
+    assert data["version"] == "1.0.0"
+    assert "X-Request-ID" in response.headers
+    assert "X-Process-Time" in response.headers
 
 
 def test_get_promises_list() -> None:
