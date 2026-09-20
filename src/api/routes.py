@@ -10,6 +10,7 @@ from src.api.crud import (
     get_mp_by_id,
     get_mp_voting_activity,
     get_promise_evaluation_detail,
+    get_promise_timeline,
     get_promises_summary,
 )
 from src.api.schemas import (
@@ -17,6 +18,7 @@ from src.api.schemas import (
     MPProfileResponse,
     PromiseEvaluationDetail,
     PromiseListItem,
+    TimelineEvent,
 )
 from src.database.engine import get_session
 
@@ -56,6 +58,26 @@ async def get_promise_evaluation(
             detail=f"Nie znaleziono obietnicy o identyfikatorze '{id}'.",
         )
     return detail
+
+
+@router.get(
+    "/promises/{id}/timeline",
+    response_model=list[TimelineEvent],
+    tags=["Obietnice"],
+    summary="Oś czasu procesu legislacyjnego powiązanego z obietnicą (Time-to-Delivery)",
+)
+async def get_promise_legislative_timeline(
+    id: str,
+    session: SessionDep,
+) -> list[TimelineEvent]:
+    """Zwraca sekwencję etapów procesu legislacyjnego powiązanego z daną obietnicą."""
+    timeline = get_promise_timeline(session, promise_id=id)
+    if timeline is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Nie znaleziono obietnicy o identyfikatorze '{id}'.",
+        )
+    return timeline
 
 
 @router.get(

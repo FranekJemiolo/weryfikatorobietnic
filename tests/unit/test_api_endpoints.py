@@ -137,3 +137,29 @@ def test_get_mp_daily_activity() -> None:
         "MIXED",
         "NO_VOTES",
     ]
+
+
+def test_get_promise_timeline_success() -> None:
+    """Weryfikuje poprawne pobieranie osi czasu (TimelineEvent) dla istniejącej obietnicy."""
+    response = client.get("/api/v1/promises/KO-01/timeline")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert isinstance(data, list)
+    assert len(data) == 5
+    first_event = data[0]
+    assert "date" in first_event
+    assert "stage_name" in first_event
+    assert "description" in first_event
+    assert "is_completed" in first_event
+    assert first_event["is_completed"] is True
+    assert "Deklaracja programowa" in first_event["stage_name"]
+
+
+def test_get_promise_timeline_404() -> None:
+    """Weryfikuje zwrócenie błędu HTTP 404 dla nieistniejącej obietnicy na osi czasu."""
+    response = client.get("/api/v1/promises/NIE-ISTNIEJE-404/timeline")
+    assert response.status_code == 404
+    error_detail = response.json().get("detail", "")
+    assert "Nie znaleziono" in error_detail
+

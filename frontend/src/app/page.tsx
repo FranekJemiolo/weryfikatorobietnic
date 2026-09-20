@@ -1,5 +1,6 @@
 import React from "react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Vote, FileCheck2, Sparkles, AlertCircle } from "lucide-react";
 import { PromiseCard } from "@/components/PromiseCard";
 import type { PromiseListItem } from "@/lib/api";
@@ -91,11 +92,16 @@ export default async function HomePage() {
         {promises.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {promises.map((promise) => (
-              <PromiseCard
+              <Link
                 key={promise.id}
-                promiseId={promise.id}
-                initialData={promise}
-              />
+                href={`/promises/${promise.id}`}
+                className="block transition-transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-xl"
+              >
+                <PromiseCard
+                  promiseId={promise.id}
+                  initialData={promise}
+                />
+              </Link>
             ))}
           </div>
         ) : (

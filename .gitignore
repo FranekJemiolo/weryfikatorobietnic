@@ -13,9 +13,9 @@ develop-eggs/
 dist/
 downloads/
 eggs/
-.eggs/
-lib/
-lib64/
+/lib/
+/lib64/
+!frontend/src/lib/
 parts/
 sdist/
 var/
@@ -75,4 +75,7 @@ next-env.d.ts
 public/sw.js*
 public/workbox-*
 public/swe-worker-*
+frontend/public/sw.js*
+frontend/public/workbox-*
+frontend/public/swe-worker-*
 pnpm-debug.log*

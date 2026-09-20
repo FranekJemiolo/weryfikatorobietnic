@@ -45,6 +45,8 @@ class PromiseEvaluationDetail(BaseModel):
     bill_id: str | None = None
     bill_title: str | None = None
     bill_print_num: str | None = None
+    estimated_budget_impact_pln: float | None = None
+    divergence_details: str | None = None
     relevant_articles: list[ArticleExcerpt] = Field(default_factory=list)
 
 
@@ -68,3 +70,12 @@ class MPProfileResponse(BaseModel):
     active: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TimelineEvent(BaseModel):
+    """Wydarzenie na osi czasu procesu legislacyjnego (Time-to-Delivery)."""
+
+    date: str
+    stage_name: str
+    description: str
+    is_completed: bool
