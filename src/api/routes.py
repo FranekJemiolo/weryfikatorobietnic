@@ -3,28 +3,41 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from src.api.crud import (
+    create_or_update_push_subscription,
     get_analytics_summary,
     get_mp_by_id,
     get_mp_voting_activity,
     get_promise_evaluation_detail,
     get_promise_timeline,
     get_promises_summary,
+    register_ngo_webhook,
+    remove_push_subscription,
     search_promises,
 )
 from src.api.schemas import (
     AnalyticsSummary,
     DailyActivityItem,
     MPProfileResponse,
+    NgoWebhookCreate,
+    NgoWebhookResponse,
     PromiseEvaluationDetail,
     PromiseListItem,
     PromiseSearchResponse,
+    PromiseStatusChangeNotificationRequest,
+    SubscribeRequest,
+    SubscribeResponse,
     TimelineEvent,
+    UnsubscribeRequest,
+    VapidPublicKeyResponse,
 )
+from src.config import settings
 from src.database.engine import get_session
+from src.database.models import LLMEvaluation, Promise
+from src.notifications.dispatcher import async_notify_promise_status_change
 
 router = APIRouter(prefix="/api/v1")
 
@@ -265,3 +278,160 @@ async def get_mp_daily_activity_endpoint(
         }
         for a in activities
     ]
+
+
+# --- System Subskrypcji i Powiadomień Web Push (PWA) & Webhooków NGO ---
+
+
+@router.get(
+    "/subscriptions/vapid-key",
+    response_model=VapidPublicKeyResponse,
+    tags=["Powiadomienia"],
+    summary="Pobiera publiczny klucz VAPID dla Service Workera PWA",
+)
+async def get_vapid_key() -> VapidPublicKeyResponse:
+    """Zwraca publiczny klucz VAPID do konfiguracji subskrypcji push w przeglądarce."""
+    return VapidPublicKeyResponse(public_key=settings.vapid_public_key)
+
+
+@router.post(
+    "/subscribe",
+    response_model=SubscribeResponse,
+    tags=["Powiadomienia"],
+    summary="Rejestruje subskrypcję powiadomień Push dla obywatela (PWA)",
+)
+async def subscribe_push(
+    body: SubscribeRequest,
+    session: SessionDep,
+) -> SubscribeResponse:
+    """Zapisuje subskrypcję obywatelską dla konkretnej obietnicy, posła lub kategorii (zgodne z RODO)."""
+    sub = create_or_update_push_subscription(
+        session=session,
+        endpoint=body.subscription.endpoint,
+        p256dh=body.subscription.keys.p256dh,
+        auth=body.subscription.keys.auth,
+        target_type=body.target_type,
+        target_id=body.target_id,
+    )
+    return SubscribeResponse(
+        success=True,
+        message=f"Pomyślnie zasubskrybowano powiadomienia dla {body.target_type}:{body.target_id}",
+        subscription_id=sub.id,
+    )
+
+
+@router.post(
+    "/unsubscribe",
+    tags=["Powiadomienia"],
+    summary="Usuwa subskrypcję powiadomień Push",
+)
+async def unsubscribe_push(
+    body: UnsubscribeRequest,
+    session: SessionDep,
+) -> dict[str, Any]:
+    """Usuwa powiązanie subskrypcji z danym obiektem."""
+    removed = remove_push_subscription(
+        session=session,
+        endpoint=body.endpoint,
+        target_type=body.target_type,
+        target_id=body.target_id,
+    )
+    return {
+        "success": removed,
+        "message": "Subskrypcja została usunięta"
+        if removed
+        else "Nie znaleziono aktywnej subskrypcji",
+    }
+
+
+@router.post(
+    "/webhooks",
+    response_model=NgoWebhookResponse,
+    tags=["Otwarte Dane NGO"],
+    summary="Rejestracja webhooka dla organizacji pozarządowej (NGO) lub redakcji",
+)
+async def register_webhook_endpoint(
+    body: NgoWebhookCreate,
+    session: SessionDep,
+) -> NgoWebhookResponse:
+    """Rejestruje webhook dla NGO ze współdzielonym kluczem HMAC-SHA256."""
+    webhook = register_ngo_webhook(
+        session=session,
+        organization_name=body.organization_name,
+        target_url=body.target_url,
+        secret_token=body.secret_token,
+    )
+    return NgoWebhookResponse.model_validate(webhook)
+
+
+@router.post(
+    "/promises/{id}/notify",
+    tags=["Powiadomienia"],
+    summary="Ręczne rozesłanie powiadomienia o statusie obietnicy (w tle)",
+)
+async def trigger_promise_notification(
+    id: str,
+    body: PromiseStatusChangeNotificationRequest,
+    background_tasks: BackgroundTasks,
+    session: SessionDep,
+) -> dict[str, str]:
+    """Wysyła asynchronicznie powiadomienia w tle (BackgroundTasks) do subskrybentów oraz NGO."""
+    promise = session.get(Promise, id)
+    if not promise:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Nie znaleziono obietnicy o identyfikatorze '{id}'.",
+        )
+
+    background_tasks.add_task(
+        async_notify_promise_status_change,
+        promise_id=id,
+        old_status=body.old_status,
+        new_status=body.new_status,
+        llm_justification=body.llm_justification,
+    )
+    return {
+        "status": "queued",
+        "message": f"Powiadomienia dla obietnicy {id} zostały zakolejkowane w tle.",
+    }
+
+
+@router.post(
+    "/evaluations/{id}/approve",
+    tags=["Human-in-the-Loop"],
+    summary="Zatwierdzenie ewaluacji przez człowieka i rozesłanie powiadomień w tle",
+)
+async def approve_evaluation_endpoint(
+    id: int,
+    background_tasks: BackgroundTasks,
+    session: SessionDep,
+) -> dict[str, Any]:
+    """Zatwierdza ewaluację LLM przez moderatora (Human-in-the-Loop) i wyzwala powiadomienia."""
+    evaluation = session.get(LLMEvaluation, id)
+    if not evaluation:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Nie znaleziono ewaluacji o identyfikatorze {id}.",
+        )
+
+    evaluation.is_approved_by_human = True
+    session.add(evaluation)
+    session.commit()
+    session.refresh(evaluation)
+
+    promise = session.get(Promise, evaluation.promise_id)
+    if promise:
+        background_tasks.add_task(
+            async_notify_promise_status_change,
+            promise_id=promise.id,
+            old_status=promise.status.value,
+            new_status=evaluation.alignment_status.value,
+            llm_justification=evaluation.justification,
+        )
+
+    return {
+        "success": True,
+        "evaluation_id": id,
+        "is_approved_by_human": True,
+        "message": "Ewaluacja została zatwierdzona, a powiadomienia zakolejkowane w tle.",
+    }

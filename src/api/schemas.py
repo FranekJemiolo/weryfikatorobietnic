@@ -101,3 +101,75 @@ class PromiseSearchResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PushSubscriptionKeys(BaseModel):
+    """Klucze kryptograficzne subskrypcji Web Push (p256dh i auth)."""
+
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionData(BaseModel):
+    """Struktura subskrypcji Push zwracana przez przeglądarkę."""
+
+    endpoint: str
+    keys: PushSubscriptionKeys
+
+
+class SubscribeRequest(BaseModel):
+    """Żądanie rejestracji subskrypcji obywatelskiej (zgodne z RODO / brak danych osobowych)."""
+
+    subscription: PushSubscriptionData
+    target_type: str = "PROMISE"
+    target_id: str
+
+
+class SubscribeResponse(BaseModel):
+    """Odpowiedź na żądanie rejestracji subskrypcji."""
+
+    success: bool
+    message: str
+    subscription_id: int | None = None
+
+
+class UnsubscribeRequest(BaseModel):
+    """Żądanie usunięcia subskrypcji powiadomień."""
+
+    endpoint: str
+    target_type: str = "PROMISE"
+    target_id: str
+
+
+class VapidPublicKeyResponse(BaseModel):
+    """Klucz publiczny VAPID dla Service Workera."""
+
+    public_key: str
+
+
+class NgoWebhookCreate(BaseModel):
+    """Rejestracja webhooka dla organizacji pozarządowej."""
+
+    organization_name: str
+    target_url: str
+    secret_token: str
+
+
+class NgoWebhookResponse(BaseModel):
+    """Zarejestrowany webhook organizacji NGO."""
+
+    id: int
+    organization_name: str
+    target_url: str
+    is_active: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PromiseStatusChangeNotificationRequest(BaseModel):
+    """Żądanie rozesłania powiadomienia o zmianie statusu obietnicy."""
+
+    old_status: str
+    new_status: str
+    llm_justification: str

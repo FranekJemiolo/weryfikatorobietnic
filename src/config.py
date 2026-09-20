@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
+    # Konfiguracja Web Push (VAPID) dla PWA
+    vapid_public_key: str = (
+        "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuNu35V4527VQQOLSdmlq5hK10="
+    )
+    vapid_private_key: str = "A1234567890abcdef1234567890abcdef1234567890="
+    vapid_claims_email: str = "mailto:kontakt@weryfikatorobietnic.pl"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

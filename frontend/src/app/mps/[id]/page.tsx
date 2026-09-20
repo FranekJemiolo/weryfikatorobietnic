@@ -6,7 +6,9 @@ import { ArrowLeft, User, Shield, CheckCircle2, XCircle, BarChart3 } from "lucid
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MPActivityHeatmap } from "@/components/MPActivityHeatmap";
+import { SubscribeButton } from "@/components/SubscribeButton";
 import type { MPProfile } from "@/lib/api";
+
 
 interface PageProps {
   params: {
@@ -106,14 +108,23 @@ export default async function MPProfilePage({ params }: PageProps) {
           </div>
 
           <div className="space-y-2 flex-1">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                {fullName}
-              </h1>
-              <Badge variant="secondary" className="font-semibold text-xs bg-slate-800 text-slate-200">
-                Poseł X Kadencji
-              </Badge>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  {fullName}
+                </h1>
+                <Badge variant="secondary" className="font-semibold text-xs bg-slate-800 text-slate-200">
+                  Poseł X Kadencji
+                </Badge>
+              </div>
+              <SubscribeButton
+                targetType="MP"
+                targetId={params.id}
+                label="Śledź posła"
+                size="default"
+              />
             </div>
+
 
             <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-slate-400">
               <span className="flex items-center gap-1.5 font-medium text-slate-200">

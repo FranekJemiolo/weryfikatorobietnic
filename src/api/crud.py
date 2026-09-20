@@ -19,12 +19,16 @@ from src.database.models import (
     MP,
     Bill,
     BillArticle,
+    CitizenSubscription,
     Interpellation,
     LLMEvaluation,
     MPVote,
+    NgoWebhook,
     PreLegislativeProcess,
     Promise,
     PromiseStatus,
+    PushSubscriber,
+    SubscriptionTargetType,
     VoteType,
     Voting,
 )
@@ -453,3 +457,115 @@ def get_promise_timeline(
             is_completed=is_signed,
         ),
     ]
+
+
+def create_or_update_push_subscription(
+    session: Session,
+    endpoint: str,
+    p256dh: str,
+    auth: str,
+    target_type: str,
+    target_id: str,
+) -> CitizenSubscription:
+    """Zapisuje lub aktualizuje subskrybenta Web Push oraz tworzy subskrypcję zasobu (zgodność z RODO)."""
+    subscriber = session.exec(
+        select(PushSubscriber).where(PushSubscriber.endpoint_url == endpoint)
+    ).first()
+
+    if not subscriber:
+        subscriber = PushSubscriber(
+            endpoint_url=endpoint,
+            p256dh_key=p256dh,
+            auth_key=auth,
+        )
+        session.add(subscriber)
+        session.commit()
+        session.refresh(subscriber)
+    else:
+        if subscriber.p256dh_key != p256dh or subscriber.auth_key != auth:
+            subscriber.p256dh_key = p256dh
+            subscriber.auth_key = auth
+            session.add(subscriber)
+            session.commit()
+            session.refresh(subscriber)
+
+    target_type_enum = (
+        SubscriptionTargetType(target_type)
+        if target_type in SubscriptionTargetType.__members__
+        else SubscriptionTargetType.PROMISE
+    )
+
+    subscription = session.exec(
+        select(CitizenSubscription).where(
+            CitizenSubscription.subscriber_id == subscriber.id,
+            CitizenSubscription.target_type == target_type_enum,
+            CitizenSubscription.target_id == target_id,
+        )
+    ).first()
+
+    if not subscription:
+        subscription = CitizenSubscription(
+            subscriber_id=subscriber.id,
+            target_type=target_type_enum,
+            target_id=target_id,
+        )
+        session.add(subscription)
+        session.commit()
+        session.refresh(subscription)
+
+    return subscription
+
+
+def remove_push_subscription(
+    session: Session,
+    endpoint: str,
+    target_type: str,
+    target_id: str,
+) -> bool:
+    """Usuwa subskrypcję powiadomień wskazanego celu dla danego endpointu."""
+    subscriber = session.exec(
+        select(PushSubscriber).where(PushSubscriber.endpoint_url == endpoint)
+    ).first()
+
+    if not subscriber:
+        return False
+
+    target_type_enum = (
+        SubscriptionTargetType(target_type)
+        if target_type in SubscriptionTargetType.__members__
+        else SubscriptionTargetType.PROMISE
+    )
+
+    subscription = session.exec(
+        select(CitizenSubscription).where(
+            CitizenSubscription.subscriber_id == subscriber.id,
+            CitizenSubscription.target_type == target_type_enum,
+            CitizenSubscription.target_id == target_id,
+        )
+    ).first()
+
+    if subscription:
+        session.delete(subscription)
+        session.commit()
+        return True
+
+    return False
+
+
+def register_ngo_webhook(
+    session: Session,
+    organization_name: str,
+    target_url: str,
+    secret_token: str,
+) -> NgoWebhook:
+    """Rejestruje nowy webhook dla organizacji NGO lub redakcji dziennikarskiej."""
+    webhook = NgoWebhook(
+        organization_name=organization_name,
+        target_url=target_url,
+        secret_token=secret_token,
+        is_active=True,
+    )
+    session.add(webhook)
+    session.commit()
+    session.refresh(webhook)
+    return webhook

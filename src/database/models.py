@@ -37,6 +37,14 @@ class AlignmentStatus(StrEnum):
     BRAK_POWIAZANIA = "BRAK_POWIAZANIA"
 
 
+class SubscriptionTargetType(StrEnum):
+    """Typ celu subskrypcji obywatelskiej (PWA / Web Push)."""
+
+    PROMISE = "PROMISE"
+    MP = "MP"
+    CATEGORY = "CATEGORY"
+
+
 class MP(SQLModel, table=True):
     """Poseł na Sejm RP."""
 
@@ -388,4 +396,73 @@ class RSSFeedItem(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         description="Data pobrania i zapisu w bazie danych",
+    )
+
+
+class PushSubscriber(SQLModel, table=True):
+    """Subskrybent powiadomień Web Push PWA (zgodny z RODO / brak danych osobowych PII)."""
+
+    __tablename__ = "push_subscribers"
+
+    id: int | None = Field(default=None, primary_key=True)
+    endpoint_url: str = Field(
+        unique=True, index=True, description="Unikalny adres endpointu Web Push z przeglądarki"
+    )
+    p256dh_key: str = Field(description="Klucz publiczny kryptograficzny p256dh")
+    auth_key: str = Field(description="Klucz uwierzytelniający auth")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        description="Znacznik czasu rejestracji subskrypcji",
+    )
+
+    subscriptions: list["CitizenSubscription"] = Relationship(
+        back_populates="subscriber",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class CitizenSubscription(SQLModel, table=True):
+    """Subskrypcja powiadomień obywatela (śledzenie konkretnej obietnicy, posła lub kategorii)."""
+
+    __tablename__ = "citizen_subscriptions"
+
+    id: int | None = Field(default=None, primary_key=True)
+    subscriber_id: int = Field(
+        foreign_key="push_subscribers.id",
+        index=True,
+        description="Identyfikator subskrybenta push",
+    )
+    target_type: SubscriptionTargetType = Field(
+        index=True,
+        description="Typ monitorowanego zasobu (PROMISE, MP, CATEGORY)",
+    )
+    target_id: str = Field(
+        index=True,
+        description="Identyfikator zasobu (np. KO-100K-042, ID posła lub nazwa kategorii)",
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        description="Data utworzenia subskrypcji",
+    )
+
+    subscriber: PushSubscriber | None = Relationship(back_populates="subscriptions")
+
+
+class NgoWebhook(SQLModel, table=True):
+    """Webhook dla organizacji pozarządowych (NGO) i dziennikarzy śledczych."""
+
+    __tablename__ = "ngo_webhooks"
+
+    id: int | None = Field(default=None, primary_key=True)
+    organization_name: str = Field(
+        index=True, description="Nazwa organizacji NGO lub redakcji dziennikarskiej"
+    )
+    target_url: str = Field(description="Adres URL endpointu webhooka przyjmujący żądania POST")
+    secret_token: str = Field(
+        description="Tajny klucz współdzielony do sygnatury kryptograficznej HMAC-SHA256"
+    )
+    is_active: bool = Field(default=True, index=True, description="Czy webhook jest aktywny")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        description="Data utworzenia rejestracji webhooka",
     )

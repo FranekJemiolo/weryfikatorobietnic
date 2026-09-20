@@ -85,6 +85,33 @@ export interface AnalyticsSummary {
   average_delivery_days?: number | null;
 }
 
+export interface PushSubscriptionData {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
+export interface SubscribePayload {
+  subscription: PushSubscriptionData;
+  target_type: "PROMISE" | "MP" | "CATEGORY";
+  target_id: string;
+}
+
+export interface SubscribeResponse {
+  success: boolean;
+  message: string;
+  subscription_id?: number | null;
+}
+
+export interface UnsubscribePayload {
+  endpoint: string;
+  target_type: "PROMISE" | "MP" | "CATEGORY";
+  target_id: string;
+}
+
+
 export interface PromiseSearchResponse {
   items: PromiseListItem[];
   total: number;
@@ -207,4 +234,33 @@ export const api = {
       `/api/v1/promises/search${queryString ? `?${queryString}` : ""}`
     );
   },
+
+  /**
+   * Pobiera publiczny klucz VAPID dla Service Workera.
+   */
+  async getVapidPublicKey(): Promise<string> {
+    const res = await request<{ public_key: string }>("/api/v1/subscriptions/vapid-key");
+    return res.public_key;
+  },
+
+  /**
+   * Rejestruje subskrypcję Web Push dla obietnicy, posła lub kategorii.
+   */
+  async subscribePush(payload: SubscribePayload): Promise<SubscribeResponse> {
+    return request<SubscribeResponse>("/api/v1/subscribe", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Usuwa subskrypcję Web Push.
+   */
+  async unsubscribePush(payload: UnsubscribePayload): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>("/api/v1/unsubscribe", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
 };
+

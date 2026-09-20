@@ -23,8 +23,10 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { SubscribeButton } from "@/components/SubscribeButton";
 import { api, type AlignmentStatus, type PromiseListItem } from "@/lib/api";
 import { formatPLN } from "@/lib/utils";
+
 
 export interface PromiseCardProps {
   promiseId?: string;
@@ -141,11 +143,20 @@ export function PromiseCard({
               {category}
             </span>
           </div>
-          <Badge variant={config.variant} className="gap-1.5 py-1 px-3">
-            <StatusIcon className="h-3.5 w-3.5" />
-            <span>{config.label}</span>
-          </Badge>
+          <div className="flex items-center gap-2">
+            <SubscribeButton
+              targetType="PROMISE"
+              targetId={activeId}
+              label="Śledź zmianę"
+              size="sm"
+            />
+            <Badge variant={config.variant} className="gap-1.5 py-1 px-3">
+              <StatusIcon className="h-3.5 w-3.5" />
+              <span>{config.label}</span>
+            </Badge>
+          </div>
         </div>
+
 
         <CardTitle className="pt-2 text-base font-bold text-slate-100 group-hover:text-indigo-300 transition-colors sm:text-lg">
           {title}

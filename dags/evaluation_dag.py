@@ -47,7 +47,7 @@ from sqlmodel import Session, select
 
 from src.ai.evaluator import PromiseEvaluator
 from src.database.engine import get_engine
-from src.database.models import Bill, BillArticle, Promise, PromiseStatus
+from src.database.models import Bill, BillArticle, LLMEvaluation, Promise, PromiseStatus
 
 logger = logging.getLogger("airflow.task")
 
@@ -113,10 +113,51 @@ def evaluation_pipeline() -> None:
         return {
             "total_pairs": len(pairs),
             "evaluated_count": evaluated_count,
+            "evaluated_pairs": pairs,
         }
 
+    @task
+    def dispatch_evaluation_notifications(eval_summary: dict[str, Any]) -> dict[str, int]:
+        """Rozsyła powiadomienia Web Push (PWA) i Webhooki NGO dla zaktualizowanych obietnic."""
+        from src.notifications.dispatcher import notify_promise_status_change
+
+        engine = get_engine()
+        dispatched_count = 0
+
+        with Session(engine) as session:
+            pairs = eval_summary.get("evaluated_pairs", [])
+            for pair in pairs:
+                p_id = pair.get("promise_id")
+                if not p_id:
+                    continue
+                promise = session.get(Promise, p_id)
+                if not promise:
+                    continue
+                latest_eval = session.exec(
+                    select(LLMEvaluation)
+                    .where(LLMEvaluation.promise_id == p_id)
+                    .order_by(LLMEvaluation.created_at.desc())  # type: ignore[attr-defined]
+                ).first()
+
+                if latest_eval:
+                    try:
+                        notify_promise_status_change(
+                            promise_id=p_id,
+                            old_status=promise.status.value,
+                            new_status=latest_eval.alignment_status.value,
+                            llm_justification=latest_eval.justification,
+                            session=session,
+                        )
+                        dispatched_count += 1
+                    except Exception as err:
+                        logger.error("Błąd wysyłki powiadomień dla obietnicy %s: %s", p_id, err)
+
+        logger.info("Rozesłano powiadomienia po ewaluacji dla %d obietnic.", dispatched_count)
+        return {"dispatched_count": dispatched_count}
+
     candidate_pairs = get_candidate_pairs()
-    run_rag_evaluations(candidate_pairs)
+    eval_summary = run_rag_evaluations(candidate_pairs)
+    dispatch_evaluation_notifications(eval_summary)
 
 
 dag_instance = evaluation_pipeline()
