@@ -3,6 +3,8 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Column
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -103,6 +105,27 @@ class Promise(SQLModel, table=True):
     )
 
     evaluations: list["LLMEvaluation"] = Relationship(back_populates="promise")
+    revisions: list["PromiseRevision"] = Relationship(back_populates="promise")
+
+
+class PromiseRevision(SQLModel, table=True):
+    """Historia zmian treści deklaracji wyborczej lub stron programowych partii."""
+
+    __tablename__ = "promise_revisions"
+
+    id: int | None = Field(default=None, primary_key=True)
+    promise_id: str = Field(
+        foreign_key="promises.id", index=True, description="ID powiązanej obietnicy"
+    )
+    content_hash: str = Field(index=True, description="Suma kontrolna SHA-256 oczyszczonego tekstu")
+    full_html_content: str = Field(description="Zarchiwizowana surowa zawartość HTML")
+    scraped_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        index=True,
+        description="Data i czas pobrania zrzutu strony",
+    )
+
+    promise: Promise | None = Relationship(back_populates="revisions")
 
 
 class Bill(SQLModel, table=True):
@@ -120,6 +143,27 @@ class Bill(SQLModel, table=True):
     )
 
     evaluations: list["LLMEvaluation"] = Relationship(back_populates="bill")
+    articles: list["BillArticle"] = Relationship(back_populates="bill")
+
+
+class BillArticle(SQLModel, table=True):
+    """Wyodrębniony artykuł lub jednostka redakcyjna ustawy pod kątem wyszukiwania semantycznego RAG."""
+
+    __tablename__ = "bill_articles"
+
+    id: int | None = Field(default=None, primary_key=True)
+    bill_id: str = Field(
+        foreign_key="bills.id", index=True, description="Identyfikator powiązanego projektu ustawy"
+    )
+    article_number: str = Field(index=True, description="Oznaczenie artykułu, np. Art. 4a")
+    raw_text: str = Field(description="Oryginalna treść artykułu")
+    embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(Vector(1536)),
+        description="Wektor cech semantycznych (1536 wymiarów) obsługiwany przez pgvector",
+    )
+
+    bill: Bill | None = Relationship(back_populates="articles")
 
 
 class LLMEvaluation(SQLModel, table=True):

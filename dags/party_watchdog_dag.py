@@ -1,20 +1,18 @@
 """DAG Apache Airflow: Watchdog stron partii politycznych i detekcja cichych modyfikacji.
 
-Cyklicznie pobiera strony programowe zdefiniowane w config/parties.yaml, czyści DOM,
-wylicza sumę kontrolną SHA-256 z tekstu merytorycznego i w przypadku wykrycia różnicy
-tworzy nową rewizję w bazie PostgreSQL z flagą is_changed=True.
+Cyklicznie (schedule="@daily") audytuje oficjalne strony programowe partii politycznych,
+czyści kod HTML z szumu i bada spójność hashy SHA-256 z historią w tabeli PromiseRevision.
+Wykryte modyfikacje są rejestrowane jako nowe wersje z natychmiastowym alertem.
 """
 
-from datetime import datetime, timedelta
-from pathlib import Path
+import logging
+from datetime import UTC, datetime
 from typing import Any
-
-import yaml
 
 try:
     from airflow.decorators import dag, task
 except ImportError:
-
+    # Kompatybilność z lokalnym środowiskiem testowym bez zainstalowanego Apache Airflow
     class MockTask:
         def __init__(self, name: str) -> None:
             self.name = name
@@ -34,164 +32,89 @@ except ImportError:
     def task(*args: Any, **kwargs: Any):  # type: ignore[no-redef]
         def decorator(f: Any) -> Any:
             def wrapper(*call_args: Any, **call_kwargs: Any) -> MockTask:
-                return MockTask(f.__name__)
+                return MockTask(getattr(f, "__name__", str(f)))
 
-            wrapper.__name__ = f.__name__
-            wrapper.__doc__ = f.__doc__
+            wrapper.__name__ = getattr(f, "__name__", str(f))
+            wrapper.__doc__ = getattr(f, "__doc__", "")
             return wrapper
 
+        if args and callable(args[0]):
+            return decorator(args[0])
         return decorator
 
 
-from src.collectors.web_scraper import WebContentTracker
-from src.core.database import db_manager
+from src.database.engine import get_engine
+from src.scrapers.party_watchdog import PartyWatchdog
+
+logger = logging.getLogger("airflow.task")
+
+# Domyślna lista monitorowanych stron partii i powiązanych deklaracji
+DEFAULT_WATCHDOG_TARGETS: list[dict[str, str]] = [
+    {
+        "url": "https://koalicjaobywatelska.pl/program",
+        "promise_id": "KO-100K-042",
+    },
+    {
+        "url": "https://polska2050.pl/gwarancje",
+        "promise_id": "TD-GWAR-015",
+    },
+]
 
 
 @dag(
     dag_id="party_watchdog_dag",
-    schedule_interval=timedelta(hours=12),
-    start_date=datetime(2024, 1, 1),
+    schedule="@daily",
+    start_date=datetime(2024, 1, 1, tzinfo=UTC),
     catchup=False,
     max_active_runs=1,
     tags=["watchdog", "parties", "silent-changes", "scraping"],
     doc_md=__doc__,
 )
 def party_watchdog_pipeline() -> None:
-    """Potok orkiestracji wykrywający ciche modyfikacje w programach wyborczych partii."""
+    """Potok orkiestracji Airflow sprawdzający ciche zmiany w obietnicach wyborczych."""
 
-    @task(task_id="load_monitored_targets")
-    def load_monitored_targets() -> list[dict[str, Any]]:
-        """Wczytuje listę monitorowanych adresów URL z pliku konfiguracyjnego."""
-        config_path = Path("config/parties.yaml").resolve()
-        if not config_path.exists():
-            return []
+    @task(retries=2)  # type: ignore[untyped-decorator]
+    def run_party_watchdog(targets: list[dict[str, str]]) -> list[dict[str, Any]]:
+        """Zadanie Airflow: Pobiera strony, czyści HTML i rejestruje rewizje w SQLModel."""
+        engine = get_engine()
+        watchdog = PartyWatchdog(engine=engine)
+        logger.info("Uruchamianie PartyWatchdog dla %d adresów URL...", len(targets))
 
-        with open(config_path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
+        results = watchdog.monitor_all(targets)
+        logger.info("Zakończono audyt. Przetworzono adresów: %d", len(results))
+        return results
 
-        targets: list[dict[str, Any]] = []
-        for party in data.get("parties", []):
-            party_id = party.get("id")
-            for url_entry in party.get("monitored_urls", []):
-                targets.append(
-                    {
-                        "party_id": party_id,
-                        "name": url_entry.get("name"),
-                        "url": url_entry.get("url"),
-                        "selector": url_entry.get("selector", "main"),
-                    }
-                )
-        return targets
+    @task  # type: ignore[untyped-decorator]
+    def alert_on_silent_changes(audit_results: list[dict[str, Any]]) -> dict[str, int]:
+        """Zadanie Airflow: Analizuje wyniki i raportuje liczbę cichych modyfikacji."""
+        changed_items = [r for r in audit_results if r.get("is_changed")]
+        initial_items = [r for r in audit_results if r.get("is_initial")]
 
-    @task(task_id="audit_party_pages_for_changes")
-    def audit_party_pages_for_changes(targets: list[dict[str, Any]]) -> dict[str, int]:
-        """Pobiera zawartość, kalkuluje SHA-256 i rejestruje nowe rewizje przy wykryciu zmian."""
-        tracker = WebContentTracker()
-        changed_count = 0
-        unchanged_count = 0
-        error_count = 0
+        for item in changed_items:
+            logger.warning(
+                "🚨 [ALARM - CICHA ZMIANA] Wykryto zmianę deklaracji %s pod adresem: %s (Nowy hash: %s)",
+                item.get("promise_id"),
+                item.get("url"),
+                str(item.get("content_hash", ""))[:8],
+            )
 
-        for target in targets:
-            party_id = target["party_id"]
-            url = target["url"]
-
-            try:
-                snapshot = tracker.fetch_and_snapshot(url)
-            except Exception:
-                error_count += 1
-                continue
-
-            # Pobranie ostatniego hasha z bazy danych
-            last_hash: str | None = None
-            last_rev: int = 0
-
-            lookup_query = """
-                SELECT content_hash, revision_number
-                FROM party_web_snapshots
-                WHERE party_id = %s AND source_url = %s
-                ORDER BY detected_at DESC
-                LIMIT 1;
-            """
-            try:
-                with db_manager.get_connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute(lookup_query, (party_id, url))
-                        row = cur.fetchone()
-                        if row:
-                            last_hash = str(row["content_hash"])
-                            last_rev = int(row["revision_number"])
-            except Exception:
-                pass
-
-            # Jeśli strona jest pobierana po raz pierwszy
-            if last_hash is None:
-                insert_query = """
-                    INSERT INTO party_web_snapshots (
-                        party_id, source_url, content_hash, cleaned_markdown, raw_html,
-                        is_changed, revision_number, detected_at
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP);
-                """
-                try:
-                    with db_manager.get_connection() as conn:
-                        with conn.cursor() as cur:
-                            cur.execute(
-                                insert_query,
-                                (
-                                    party_id,
-                                    url,
-                                    snapshot.content_hash,
-                                    snapshot.cleaned_text[:50000],  # Limit wielkości tekstu
-                                    snapshot.raw_html[:100000],
-                                    False,
-                                    1,
-                                ),
-                            )
-                        conn.commit()
-                except Exception:
-                    pass
-                unchanged_count += 1
-
-            elif last_hash != snapshot.content_hash:
-                # Wykryto zmianę w treści obietnic!
-                insert_query = """
-                    INSERT INTO party_web_snapshots (
-                        party_id, source_url, content_hash, cleaned_markdown, raw_html,
-                        is_changed, revision_number, detected_at
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP);
-                """
-                try:
-                    with db_manager.get_connection() as conn:
-                        with conn.cursor() as cur:
-                            cur.execute(
-                                insert_query,
-                                (
-                                    party_id,
-                                    url,
-                                    snapshot.content_hash,
-                                    snapshot.cleaned_text[:50000],
-                                    snapshot.raw_html[:100000],
-                                    True,
-                                    last_rev + 1,
-                                ),
-                            )
-                        conn.commit()
-                except Exception:
-                    pass
-                changed_count += 1
-            else:
-                unchanged_count += 1
+        logger.info(
+            "Podsumowanie audytu: Nowych stron: %d, Zmienionych (Alert): %d, Bez zmian: %d",
+            len(initial_items),
+            len(changed_items),
+            len(audit_results) - len(changed_items) - len(initial_items),
+        )
 
         return {
-            "changed": changed_count,
-            "unchanged": unchanged_count,
-            "errors": error_count,
-            "total_evaluated": len(targets),
+            "total_checked": len(audit_results),
+            "changed_count": len(changed_items),
+            "initial_count": len(initial_items),
         }
 
-    targets_to_check = load_monitored_targets()
-    audit_party_pages_for_changes(targets_to_check)
+    # Zdefiniowanie przepływu zadań w DAG-u
+    audit_data = run_party_watchdog(DEFAULT_WATCHDOG_TARGETS)
+    alert_on_silent_changes(audit_data)
 
 
-watchdog_dag = party_watchdog_pipeline()
+# Rejestracja instancji DAG w module
+dag_instance = party_watchdog_pipeline()

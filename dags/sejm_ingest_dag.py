@@ -1,20 +1,19 @@
-"""DAG Apache Airflow: Ingestia procesów legislacyjnych i druków z Sejm OpenAPI.
+"""DAG Apache Airflow: Ingestia procesów legislacyjnych i zapis projektów ustaw (Bill) w SQLModel.
 
-Cyklicznie pobiera listę procesów legislacyjnych X kadencji, porównuje daty zmian
-z rekordami w PostgreSQL i pobiera pełne detale oraz powiązane druki dla nowych
-lub zaktualizowanych spraw. Zapisuje surowe dane do tabeli stagingowej raw_sejm_data.
+Uruchamia się co godzinę (schedule="@hourly"), odpytuje oficjalny Sejm OpenAPI
+o najnowsze procesy legislacyjne (X kadencja) za pomocą asynchronicznego klienta SejmApiClient,
+sprawdza w bazie PostgreSQL (tabela Bill), czy pojawiły się nowe projekty ustaw i zapisuje je.
 """
 
-from datetime import datetime, timedelta
+import asyncio
+import logging
+from datetime import UTC, datetime
 from typing import Any
-
-import httpx
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 try:
     from airflow.decorators import dag, task
 except ImportError:
-
+    # Kompatybilność z lokalnym środowiskiem testowym bez zainstalowanego Apache Airflow
     class MockTask:
         def __init__(self, name: str) -> None:
             self.name = name
@@ -34,174 +33,111 @@ except ImportError:
     def task(*args: Any, **kwargs: Any):  # type: ignore[no-redef]
         def decorator(f: Any) -> Any:
             def wrapper(*call_args: Any, **call_kwargs: Any) -> MockTask:
-                return MockTask(f.__name__)
+                return MockTask(getattr(f, "__name__", str(f)))
 
-            wrapper.__name__ = f.__name__
-            wrapper.__doc__ = f.__doc__
+            wrapper.__name__ = getattr(f, "__name__", str(f))
+            wrapper.__doc__ = getattr(f, "__doc__", "")
             return wrapper
 
+        if args and callable(args[0]):
+            return decorator(args[0])
         return decorator
 
 
-from psycopg.types.json import Jsonb
+from sqlmodel import Session, select
 
-from src.collectors.sejm_api import SejmClient
-from src.config import settings
-from src.core.database import db_manager
-from src.models.sejm_api import SejmProcessRaw
+from src.api_clients.sejm_client import SejmApiClient
+from src.database.engine import get_engine
+from src.database.models import Bill
 
-
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=8),
-    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
-    reraise=True,
-)
-def fetch_details_with_retry(client: SejmClient, process_number: str) -> dict[str, Any]:
-    """Pobiera szczegóły procesu z obsługą exponential backoff."""
-    return client.get_process_details(process_number)
+logger = logging.getLogger("airflow.task")
 
 
 @dag(
     dag_id="sejm_ingest_dag",
-    schedule_interval=timedelta(hours=6),
-    start_date=datetime(2024, 1, 1),
+    schedule="@hourly",
+    start_date=datetime(2024, 1, 1, tzinfo=UTC),
     catchup=False,
     max_active_runs=1,
-    tags=["sejm", "ingest", "processes", "prints"],
+    tags=["sejm", "ingest", "bills", "sqlmodel"],
     doc_md=__doc__,
 )
-def sejm_ingestion_pipeline() -> None:
-    """Potok orkiestracji pobierający i wersjonujący procesy legislacyjne z Sejmu."""
+def sejm_ingest_pipeline() -> None:
+    """Potok orkiestracji Airflow pobierający i strukturyzujący procesy Sejmu RP."""
 
-    @task(task_id="fetch_active_processes")
-    def fetch_active_processes() -> list[dict[str, Any]]:
-        """Pobiera listę procesów z Sejm OpenAPI i waliduje je modelem Pydantic."""
-        client = SejmClient()
-        raw_list = client.get_legislative_processes(offset=0, limit=200)
+    @task(retries=3)  # type: ignore[untyped-decorator]
+    def fetch_latest_processes(limit: int = 50) -> list[dict[str, Any]]:
+        """Zadanie Airflow: Odpytuje Sejm OpenAPI o ostatnie procesy i zwraca serializowalny JSON."""
 
-        validated_processes: list[dict[str, Any]] = []
-        for item in raw_list:
-            try:
-                proc = SejmProcessRaw.model_validate(item)
-                validated_processes.append(
+        async def _fetch() -> list[dict[str, Any]]:
+            async with SejmApiClient(term=10) as client:
+                processes = await client.get_processes(offset=0, limit=limit)
+                return [
                     {
-                        "process_id": proc.process_id,
-                        "number": str(proc.number),
-                        "term": proc.term,
-                        "title": proc.title,
-                        "document_type": proc.document_type,
-                        "change_date": (
-                            proc.change_date.isoformat()
-                            if isinstance(proc.change_date, datetime)
-                            else str(proc.change_date)
-                            if proc.change_date
-                            else None
-                        ),
-                        "prints": [str(p) for p in proc.prints],
+                        "number": str(p.number),
+                        "title": p.title,
+                        "document_type": p.document_type or "PROJEKT_USTAWY",
+                        "change_date": str(p.change_date) if p.change_date else None,
+                        "prints": [str(pr) for pr in p.prints],
                     }
-                )
-            except Exception:
-                continue
+                    for p in processes
+                ]
 
-        return validated_processes
+        logger.info("Pobieranie najnowszych procesów legislacyjnych z Sejm OpenAPI...")
+        processes_data = asyncio.run(_fetch())
+        logger.info("Pobrano %d procesów legislacyjnych z API.", len(processes_data))
+        return processes_data
 
-    @task(task_id="filter_changed_processes")
-    def filter_changed_processes(processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Porównuje pobrane procesy z bazą PostgreSQL i wybiera nowe lub zmodyfikowane."""
-        if not processes:
-            return []
+    @task  # type: ignore[untyped-decorator]
+    def persist_bills_to_database(processes_data: list[dict[str, Any]]) -> dict[str, Any]:
+        """Zadanie Airflow: Sprawdza tabelę Bill w SQLModel i zapisuje wyłącznie nowe projekty ustaw."""
+        engine = get_engine()
+        inserted_bills: list[str] = []
 
-        existing_records: dict[str, str | None] = {}
-        query = "SELECT process_id, change_date FROM legislative_processes WHERE term = %s;"
-        try:
-            with db_manager.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(query, (settings.default_sejm_term,))
-                    for row in cur.fetchall():
-                        pid = str(row["process_id"])
-                        cdate = row["change_date"].isoformat() if row["change_date"] else None
-                        existing_records[pid] = cdate
-        except Exception:
-            # W przypadku świeżej bazy wszystkie rekordy kwalifikujemy jako nowe
-            existing_records = {}
+        with Session(engine) as session:
+            for item in processes_data:
+                prints = item.get("prints", [])
+                title = item.get("title", "Projekt ustawy")
+                doc_type = item.get("document_type", "USTAWA")
 
-        to_update: list[dict[str, Any]] = []
-        for proc in processes:
-            pid = proc["process_id"]
-            incoming_date = proc.get("change_date")
-            if pid not in existing_records or existing_records[pid] != incoming_date:
-                to_update.append(proc)
+                # Każdy proces może mieć powiązany jeden lub więcej druków sejmowych
+                for print_num in prints:
+                    bill_id = f"druk-{print_num}"
 
-        return to_update
+                    # Weryfikacja czy projekt o danym ID już istnieje w bazie PostgreSQL
+                    existing_bill = session.get(Bill, bill_id)
+                    if not existing_bill:
+                        # Weryfikacja po numerze druku
+                        statement = select(Bill).where(Bill.sejm_print_num == str(print_num))
+                        existing_by_num = session.exec(statement).first()
 
-    @task(task_id="ingest_process_details_and_prints")
-    def ingest_process_details_and_prints(to_update: list[dict[str, Any]]) -> dict[str, int]:
-        """Pobiera pełne detale zaktualizowanych procesów oraz druków i zapisuje do bazy."""
-        client = SejmClient()
-        success_count = 0
+                        if not existing_by_num:
+                            new_bill = Bill(
+                                id=bill_id,
+                                sejm_print_num=str(print_num),
+                                title=title[:255] if len(title) > 255 else title,
+                                status=doc_type,
+                                author="Sejm RP",
+                                document_url=f"https://www.sejm.gov.pl/Sejm10.nsf/druk.xsp?nr={print_num}",
+                            )
+                            session.add(new_bill)
+                            inserted_bills.append(bill_id)
 
-        for item in to_update:
-            process_num = item["number"]
-            process_id = item["process_id"]
-            term = item["term"]
+            session.commit()
 
-            try:
-                details = fetch_details_with_retry(client, process_num)
+        logger.info(
+            "Zapisano do bazy PostgreSQL: %d nowych projektów ustaw (Bill).", len(inserted_bills)
+        )
+        return {
+            "total_processes_scanned": len(processes_data),
+            "new_bills_inserted": len(inserted_bills),
+            "inserted_bill_ids": inserted_bills,
+        }
 
-                # 1. Zapis surowego ładunku JSONB do warstwy stagingowej (raw_sejm_data)
-                db_manager.insert_raw_sejm_record(
-                    endpoint="processes",
-                    term=term,
-                    external_id=process_id,
-                    payload=details,
-                )
-
-                # 2. Upsert znormalizowanych danych do tabeli legislative_processes
-                upsert_query = """
-                    INSERT INTO legislative_processes (
-                        process_id, term, title, description, author, author_type,
-                        status, change_date, print_numbers, timeline, updated_at
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (process_id) DO UPDATE SET
-                        title = EXCLUDED.title,
-                        description = EXCLUDED.description,
-                        author = EXCLUDED.author,
-                        author_type = EXCLUDED.author_type,
-                        status = EXCLUDED.status,
-                        change_date = EXCLUDED.change_date,
-                        print_numbers = EXCLUDED.print_numbers,
-                        timeline = EXCLUDED.timeline,
-                        updated_at = CURRENT_TIMESTAMP;
-                """
-                with db_manager.get_connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            upsert_query,
-                            (
-                                process_id,
-                                term,
-                                details.get("title", item.get("title", "")),
-                                details.get("description"),
-                                details.get("author"),
-                                details.get("authorType"),
-                                details.get("documentType", "W_TOKU"),
-                                item.get("change_date"),
-                                Jsonb(details.get("prints", item.get("prints", []))),
-                                Jsonb(details.get("stages", [])),
-                            ),
-                        )
-                    conn.commit()
-                success_count += 1
-            except Exception:
-                continue
-
-        return {"processed_count": success_count, "total_candidates": len(to_update)}
-
-    all_procs = fetch_active_processes()
-    changed_procs = filter_changed_processes(all_procs)
-    ingest_process_details_and_prints(changed_procs)
+    # Definicja zależności przepływu danych
+    fetched_data = fetch_latest_processes()
+    persist_bills_to_database(fetched_data)
 
 
-sejm_dag = sejm_ingestion_pipeline()
+# Rejestracja instancji DAG
+dag_instance = sejm_ingest_pipeline()

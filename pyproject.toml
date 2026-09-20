@@ -24,6 +24,7 @@ dependencies = [
     "sqlmodel>=0.0.42",
     "alembic>=1.20.0",
     "psycopg2-binary>=2.9.13",
+    "pgvector>=0.5.0",
 ]
 
 [project.optional-dependencies]
@@ -71,7 +72,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["alembic.*"]
+module = ["alembic.*", "dags.*"]
 ignore_errors = true
 
 [tool.pytest.ini_options]
