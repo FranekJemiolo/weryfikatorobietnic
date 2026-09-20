@@ -1,7 +1,14 @@
-# Konfiguracja monitorowania stron programowych partii i feedów rządowych
+# Konfiguracja monitorowania stron programowych partii i feedów rządowych / politycznych
+# Obejmuje wszystkie kluczowe ugrupowania reprezentowane w X kadencji Sejmu i Senatu RP
+
 parties:
   - id: "KO"
     name: "Koalicja Obywatelska"
+    sub_parties:
+      - "Platforma Obywatelska"
+      - "Nowoczesna"
+      - "Inicjatywa Polska"
+      - "Partia Zieloni"
     monitored_urls:
       - name: "100 Konkretów na pierwsze 100 dni"
         url: "https://100konkretow.pl"
@@ -9,37 +16,116 @@ parties:
       - name: "Program Platformy Obywatelskiej"
         url: "https://platforma.org/dokumenty"
         selector: "article"
+      - name: "Nowoczesna - Program"
+        url: "https://nowoczesna.org"
+        selector: "main"
+      - name: "Inicjatywa Polska - Deklaracja"
+        url: "https://ipl.pl"
+        selector: "main"
+      - name: "Partia Zieloni - Manifest i Program"
+        url: "https://partiazieloni.pl"
+        selector: "main"
 
-  - id: "TD"
-    name: "Trzecia Droga (PSL - Polska 2050)"
+  - id: "PIS"
+    name: "Prawo i Sprawiedliwość"
+    sub_parties:
+      - "Prawo i Sprawiedliwość"
+      - "Suwerenna Polska"
     monitored_urls:
-      - name: "Wspólna Lista Spraw Trzeciej Drogi"
+      - name: "Program PiS - Bezpieczna Przyszłość Polaków"
+        url: "https://pis.org.pl/partia/program"
+        selector: "main"
+      - name: "Aktualności i Deklaracje PiS"
+        url: "https://pis.org.pl/aktualnosci"
+        selector: "main"
+      - name: "Suwerenna Polska - Deklaracja"
+        url: "https://suwerenna.org.pl"
+        selector: "main"
+
+  - id: "PL2050"
+    name: "Polska 2050 Szymona Hołowni (Trzecia Droga)"
+    monitored_urls:
+      - name: "Program Polska 2050"
         url: "https://polska2050.pl/program"
+        selector: "main"
+      - name: "Gwarancje Polska 2050"
+        url: "https://polska2050.pl/gwarancje"
+        selector: "main"
+
+  - id: "PSL"
+    name: "Polskie Stronnictwo Ludowe (Trzecia Droga)"
+    monitored_urls:
+      - name: "Program PSL - Uczciwa Polska"
+        url: "https://psl.pl/program"
+        selector: "main"
+      - name: "Aktualności PSL"
+        url: "https://psl.pl/aktualnosci"
         selector: "main"
 
   - id: "LEWICA"
     name: "Nowa Lewica"
     monitored_urls:
-      - name: "Program Wyborczy Lewicy"
+      - name: "Program Wyborczy Nowej Lewicy"
         url: "https://klub-lewica.org.pl/program"
         selector: "main"
+      - name: "Deklaracja Programowa Nowej Lewicy"
+        url: "https://lewica.org.pl/program"
+        selector: "main"
 
-  - id: "PIS"
-    name: "Prawo i Sprawiedliwość"
+  - id: "RAZEM"
+    name: "Partia Razem"
     monitored_urls:
-      - name: "Program PiS"
-        url: "https://pis.org.pl/partia/program"
+      - name: "Deklaracja Programowa Partii Razem"
+        url: "https://partiarazem.pl/program"
+        selector: "main"
+      - name: "Stanowiska i Uchwały Partii Razem"
+        url: "https://partiarazem.pl/aktualnosci"
         selector: "main"
 
   - id: "KONF"
-    name: "Konfederacja"
+    name: "Konfederacja Wolność i Niepodległość"
+    sub_parties:
+      - "Nowa Nadzieja"
+      - "Ruch Narodowy"
+      - "Konfederacja Korony Polskiej"
     monitored_urls:
-      - name: "Konstytucja Wolności"
+      - name: "Konstytucja Wolności - Program Konfederacji"
         url: "https://konfederacja.pl/program"
         selector: "main"
+      - name: "Nowa Nadzieja - Postulaty Gospodarcze"
+        url: "https://wolnosc.pl/program/"
+        selector: "main"
+      - name: "Ruch Narodowy - Deklaracja Ideowa"
+        url: "https://ruch-narodowy.pl"
+        selector: "main"
 
+# Kanały informacyjne RSS / Atom (Rządowe, Parlamentarne oraz Partyjne)
 government_feeds:
   - name: "KPRM Komunikaty Premiera"
     url: "https://www.gov.pl/web/premier/komunikaty?format=rss"
-  - name: "Rządowy Proces Legislacyjny"
+    category: "GOVERNMENT"
+
+  - name: "Rządowy Proces Legislacyjny (RCL)"
     url: "https://legislacja.gov.pl/rss"
+    category: "LEGISLATION"
+
+  - name: "Sejm RP Komunikaty Kancelarii Sejmu"
+    url: "https://www.sejm.gov.pl/Sejm10.nsf/rss.xsp"
+    category: "PARLIAMENT"
+
+  - name: "Senat RP Aktualności"
+    url: "https://www.senat.gov.pl/aktualnosci/rss/"
+    category: "PARLIAMENT"
+
+party_feeds:
+  - name: "Partia Razem RSS"
+    url: "https://partiarazem.pl/feed"
+    party_id: "RAZEM"
+
+  - name: "Partia Zieloni RSS"
+    url: "https://partiazieloni.pl/feed/"
+    party_id: "KO"
+
+  - name: "Nowa Nadzieja (Wolność) RSS"
+    url: "https://wolnosc.pl/feed/"
+    party_id: "KONF"

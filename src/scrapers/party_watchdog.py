@@ -3,10 +3,13 @@
 import hashlib
 import logging
 import re
+import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
+import yaml
 from bs4 import BeautifulSoup
 from sqlalchemy import Engine
 from sqlmodel import Session, desc, select
@@ -34,6 +37,7 @@ class PartyWatchdog:
         urls: list[str] | None = None,
         engine: Engine | None = None,
         timeout: float = 15.0,
+        delay: float = 0.5,
     ) -> None:
         """Inicjalizuje monitora stron partii.
 
@@ -41,10 +45,41 @@ class PartyWatchdog:
             urls: Lista monitorowanych adresów URL.
             engine: Opcjonalny silnik SQLAlchemy/SQLModel (np. testowy).
             timeout: Maksymalny czas oczekiwania na odpowiedź serwera w sekundach.
+            delay: Odstęp czasowy między odpytywaniem kolejnych stron (polityka uprzejmości).
         """
         self.urls = urls or []
         self.engine = engine or get_engine()
         self.timeout = timeout
+        self.delay = delay
+
+    @classmethod
+    def load_targets_from_yaml(
+        cls, config_path: Path | str = "config/parties.yaml"
+    ) -> list[dict[str, str]]:
+        """Wczytuje listę celów monitoringu stron partii z pliku konfiguracyjnego YAML."""
+        path = Path(config_path)
+        if not path.is_file():
+            logger.warning("Plik %s nie istnieje. Zwracam pustą listę celów.", path)
+            return []
+
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+
+        targets: list[dict[str, str]] = []
+        for party in data.get("parties", []):
+            party_id = party.get("id", "INNE")
+            for idx, item in enumerate(party.get("monitored_urls", [])):
+                url = item.get("url")
+                if url:
+                    targets.append(
+                        {
+                            "url": url,
+                            "promise_id": f"{party_id}-PROG-{idx + 1:03d}",
+                            "party": party_id,
+                            "name": item.get("name", f"Deklaracja {party_id}"),
+                        }
+                    )
+        return targets
 
     def clean_html(self, html_content: str) -> tuple[str, str]:
         """Oczyszcza HTML z elementów nawigacyjnych i dynamicznych oraz oblicza hash SHA-256.
@@ -194,7 +229,7 @@ class PartyWatchdog:
         ]
         results: list[dict[str, Any]] = []
 
-        for target in audit_targets:
+        for idx, target in enumerate(audit_targets):
             url = target["url"]
             promise_id = target["promise_id"]
             try:
@@ -211,5 +246,8 @@ class PartyWatchdog:
                         "is_initial": False,
                     }
                 )
+
+            if self.delay > 0 and idx < len(audit_targets) - 1:
+                time.sleep(self.delay)
 
         return results

@@ -203,3 +203,31 @@ class LLMEvaluation(SQLModel, table=True):
 
     promise: Promise | None = Relationship(back_populates="evaluations")
     bill: Bill | None = Relationship(back_populates="evaluations")
+
+
+class RSSFeedItem(SQLModel, table=True):
+    """Wpis pobrany z oficjalnego kanału informacyjnego RSS/Atom (rządowego lub partyjnego)."""
+
+    __tablename__ = "rss_feed_items"
+
+    id: int | None = Field(default=None, primary_key=True)
+    source_name: str = Field(index=True, description="Nazwa źródła (np. KPRM, RCL, Sejm RP, Razem)")
+    feed_url: str = Field(index=True, description="Adres URL kanału informacyjnego RSS/Atom")
+    title: str = Field(index=True, description="Tytuł komunikatu lub artykułu")
+    link: str = Field(
+        unique=True, index=True, description="Bezpośredni link URL do treści źródłowej"
+    )
+    summary: str = Field(description="Oczyszczona treść skrótowa lub zarys komunikatu")
+    published_at: datetime = Field(
+        index=True, description="Data i godzina publikacji artykułu (UTC)"
+    )
+    guid: str | None = Field(
+        default=None, index=True, description="Unikalny identyfikator wpisu w kanale"
+    )
+    category: str | None = Field(
+        default=None, index=True, description="Kategoria wpisu (np. GOVERNMENT, LEGISLATION, PARTY)"
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        description="Data pobrania i zapisu w bazie danych",
+    )

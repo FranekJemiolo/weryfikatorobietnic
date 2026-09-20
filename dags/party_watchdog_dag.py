@@ -111,9 +111,30 @@ def party_watchdog_pipeline() -> None:
             "initial_count": len(initial_items),
         }
 
+    @task(retries=2)  # type: ignore[untyped-decorator]
+    def fetch_political_rss_feeds() -> dict[str, int]:
+        """Zadanie Airflow: Pobiera i archiwizuje wpisy z rządowych i partyjnych kanałów RSS."""
+        from sqlmodel import Session
+
+        from src.collectors.rss_collector import RSSCollector
+
+        engine = get_engine()
+        collector = RSSCollector(delay=0.5)
+        feeds = collector.load_configured_feeds()
+        logger.info("Rozpoczynanie pobierania wpisów z %d feedów RSS...", len(feeds))
+        items = collector.fetch_all(feeds=feeds)
+
+        with Session(engine) as session:
+            saved = collector.save_items_to_db(session, items)
+
+        logger.info("Pobrano %d wpisów RSS, zapisano nowych: %d.", len(items), saved)
+        return {"fetched": len(items), "saved": saved}
+
     # Zdefiniowanie przepływu zadań w DAG-u
-    audit_data = run_party_watchdog(DEFAULT_WATCHDOG_TARGETS)
+    targets = PartyWatchdog.load_targets_from_yaml() or DEFAULT_WATCHDOG_TARGETS
+    audit_data = run_party_watchdog(targets)
     alert_on_silent_changes(audit_data)
+    fetch_political_rss_feeds()
 
 
 # Rejestracja instancji DAG w module

@@ -187,5 +187,30 @@ def force_evaluate(
     )
 
 
+@app.command(name="fetch-data")
+def fetch_data(
+    rss: Annotated[
+        bool, typer.Option("--rss/--no-rss", help="Pobieraj kanały informacyjne RSS/Atom")
+    ] = True,
+    web: Annotated[
+        bool,
+        typer.Option("--web/--no-web", help="Audytuj strony internetowe partii politycznych"),
+    ] = True,
+    delay: Annotated[
+        float, typer.Option("--delay", "-d", help="Opóźnienie w sekundach między zapytaniami")
+    ] = 0.5,
+    config: Annotated[
+        str, typer.Option("--config", "-c", help="Ścieżka do pliku parties.yaml")
+    ] = "config/parties.yaml",
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Tryb testowy bez zapisu do bazy")
+    ] = False,
+) -> None:
+    """Pobiera deklaracje ze stron partii politycznych oraz oficjalnych kanałów RSS/Atom."""
+    from src.scripts.fetch_parties_and_rss import main as run_fetch
+
+    run_fetch(fetch_rss=rss, fetch_web=web, delay=delay, config=config, dry_run=dry_run)
+
+
 if __name__ == "__main__":
     app()

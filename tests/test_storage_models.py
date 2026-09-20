@@ -101,3 +101,29 @@ def test_promise_bill_and_llm_evaluation_relationship(session: Session) -> None:
     assert retrieved.promise.category == "Zdrowie"
     assert retrieved.bill is not None
     assert retrieved.bill.sejm_print_num == "18"
+
+
+def test_rss_feed_item_model(session: Session) -> None:
+    """Weryfikuje tworzenie i odczyt rekordu RSSFeedItem."""
+    from src.database.models import RSSFeedItem
+
+    item = RSSFeedItem(
+        source_name="KPRM",
+        feed_url="https://gov.pl/rss",
+        title="Nowe przepisy",
+        link="https://gov.pl/post/1",
+        summary="Krótkie podsumowanie",
+        published_at=datetime.now(UTC),
+        guid="guid-100",
+        category="GOVERNMENT",
+    )
+    session.add(item)
+    session.commit()
+
+    saved = session.exec(
+        select(RSSFeedItem).where(RSSFeedItem.link == "https://gov.pl/post/1")
+    ).first()
+    assert saved is not None
+    assert saved.source_name == "KPRM"
+    assert saved.title == "Nowe przepisy"
+    assert saved.category == "GOVERNMENT"
