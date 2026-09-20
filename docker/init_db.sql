@@ -200,6 +200,24 @@ CREATE INDEX IF NOT EXISTS idx_eval_process ON legislative_evaluations(process_i
 CREATE INDEX IF NOT EXISTS idx_eval_status ON legislative_evaluations(alignment_status);
 CREATE INDEX IF NOT EXISTS idx_eval_review ON legislative_evaluations(requires_manual_review);
 
+-- Tabela produkcyjna: core_evaluations (klucz główny: promise_id, project_id)
+CREATE TABLE IF NOT EXISTS core_evaluations (
+    promise_id VARCHAR(100) NOT NULL,
+    project_id VARCHAR(100) NOT NULL,
+    alignment_status VARCHAR(50) NOT NULL, -- W_PELNI, CZESCIOWO, SPRZECZNA, BRAK_POWIAZANIA
+    justification TEXT NOT NULL,
+    divergence_details TEXT,
+    confidence_score FLOAT NOT NULL CHECK (confidence_score BETWEEN 0.0 AND 1.0),
+    needs_human_review BOOLEAN NOT NULL DEFAULT FALSE,
+    evaluated_provisions JSONB DEFAULT '[]'::jsonb,
+    model_name VARCHAR(100) NOT NULL DEFAULT 'gemini-1.5-flash',
+    evaluated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (promise_id, project_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_core_eval_review ON core_evaluations(needs_human_review);
+CREATE INDEX IF NOT EXISTS idx_core_eval_status ON core_evaluations(alignment_status);
+
 -- ------------------------------------------------------------------------------
 -- Dane początkowe (Seed Data)
 -- ------------------------------------------------------------------------------

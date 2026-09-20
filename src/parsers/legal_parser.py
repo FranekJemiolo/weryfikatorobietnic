@@ -19,9 +19,13 @@ class ParsedProvision(BaseModel):
     paragraph: str | None = Field(default=None, description="Numer ustępu, np. 'ust. 1'")
     point: str | None = Field(default=None, description="Numer punktu, np. 'pkt 2'")
     section: str | None = Field(default=None, description="Tytuł działu, np. 'Dział I'")
-    chapter: str | None = Field(default=None, description="Tytuł rozdziału, np. 'Rozdział 2: Podatki'")
+    chapter: str | None = Field(
+        default=None, description="Tytuł rozdziału, np. 'Rozdział 2: Podatki'"
+    )
     text: str = Field(..., description="Treść merytoryczna przepisu")
-    context_path: str = Field(..., description="Ścieżka hierarchiczna, np. 'Rozdział 2 > Art. 5 ust. 1'")
+    context_path: str = Field(
+        ..., description="Ścieżka hierarchiczna, np. 'Rozdział 2 > Art. 5 ust. 1'"
+    )
 
     model_config = ConfigDict(frozen=True)
 

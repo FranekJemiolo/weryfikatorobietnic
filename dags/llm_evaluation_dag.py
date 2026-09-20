@@ -13,6 +13,7 @@ from typing import Any
 try:
     from airflow.decorators import dag, task
 except ImportError:
+
     class MockTask:
         def __init__(self, name: str) -> None:
             self.name = name
@@ -26,16 +27,20 @@ except ImportError:
     def dag(*args: Any, **kwargs: Any):  # type: ignore[no-redef]
         def decorator(f: Any) -> Any:
             return f
+
         return decorator
 
     def task(*args: Any, **kwargs: Any):  # type: ignore[no-redef]
         def decorator(f: Any) -> Any:
             def wrapper(*call_args: Any, **call_kwargs: Any) -> MockTask:
                 return MockTask(f.__name__)
+
             wrapper.__name__ = f.__name__
             wrapper.__doc__ = f.__doc__
             return wrapper
+
         return decorator
+
 
 from psycopg.types.json import Jsonb
 
@@ -80,7 +85,9 @@ def llm_evaluation_pipeline() -> None:
                         pid = str(cand["process_id"])
                         # W środowisku produkcyjnym pobierany jest załącznik PDF,
                         # tutaj jako źródło łączymy treść i uzasadnienie
-                        source_text = f"{cand['title']}\n\nArt. 1. {cand.get('description') or cand['title']}"
+                        source_text = (
+                            f"{cand['title']}\n\nArt. 1. {cand.get('description') or cand['title']}"
+                        )
                         provisions = parser.parse_provisions(source_text)
 
                         # Jeśli tekst był płaski i nie zawierał nagłówków Art.

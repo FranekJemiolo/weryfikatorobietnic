@@ -84,9 +84,7 @@ class LLMEvaluator:
             )
 
         # Przygotowanie kontekstu przepisów
-        articles_text = "\n\n".join(
-            f"[{p.context_path}]\n{p.text}" for p in provisions
-        )
+        articles_text = "\n\n".join(f"[{p.context_path}]\n{p.text}" for p in provisions)
         evaluated_labels = [p.context_path for p in provisions]
 
         user_prompt = (
