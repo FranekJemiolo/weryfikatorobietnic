@@ -13,7 +13,16 @@ try:
 except ImportError:
     AIRFLOW_AVAILABLE = False
 
-    # Fallback atrapy dla środowisk lokalnych bez zainstalowanego Airflow w IDE
+    class MockTask:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def __rshift__(self, other: Any) -> Any:
+            return other
+
+        def __lshift__(self, other: Any) -> Any:
+            return other
+
     def dag(*args: Any, **kwargs: Any):  # type: ignore[no-redef]
         def decorator(f: Any) -> Any:
             return f
@@ -22,7 +31,12 @@ except ImportError:
 
     def task(*args: Any, **kwargs: Any):  # type: ignore[no-redef]
         def decorator(f: Any) -> Any:
-            return f
+            def wrapper(*call_args: Any, **call_kwargs: Any) -> MockTask:
+                return MockTask(f.__name__)
+
+            wrapper.__name__ = f.__name__
+            wrapper.__doc__ = f.__doc__
+            return wrapper
 
         return decorator
 

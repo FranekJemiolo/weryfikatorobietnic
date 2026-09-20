@@ -49,10 +49,13 @@ CREATE TABLE IF NOT EXISTS party_web_snapshots (
     content_hash VARCHAR(64) NOT NULL, -- SHA-256
     cleaned_markdown TEXT,
     raw_html TEXT,
+    is_changed BOOLEAN NOT NULL DEFAULT TRUE,
+    revision_number INT NOT NULL DEFAULT 1,
     detected_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_party_snapshots_hash ON party_web_snapshots(party_id, content_hash);
+CREATE INDEX IF NOT EXISTS idx_party_snapshots_changed ON party_web_snapshots(party_id, is_changed);
 
 -- ------------------------------------------------------------------------------
 -- 3. Złoty Zbiór Obietnic Wyborczych (Ground Truth)
@@ -83,6 +86,7 @@ CREATE TABLE IF NOT EXISTS legislative_processes (
     author VARCHAR(255),
     author_type VARCHAR(100), -- np. 'Rada Ministrów', 'Grupa Posłów'
     status VARCHAR(100) NOT NULL,
+    change_date TIMESTAMPTZ,
     print_numbers JSONB NOT NULL DEFAULT '[]'::jsonb,
     timeline JSONB NOT NULL DEFAULT '{}'::jsonb,
     time_to_delivery_days INT,
@@ -97,7 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_processes_author ON legislative_processes(author_
 CREATE INDEX IF NOT EXISTS idx_processes_timeline_gin ON legislative_processes USING GIN (timeline);
 
 -- ------------------------------------------------------------------------------
--- 5. Głosowania i Aktywność Posłów
+-- 5. Głosowania i Aktywność Posłów (Wielu-do-Wielu)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS parliamentary_votings (
     voting_id VARCHAR(100) PRIMARY KEY,
@@ -113,12 +117,43 @@ CREATE TABLE IF NOT EXISTS parliamentary_votings (
     votes_no INT,
     votes_abstain INT,
     votes_absent INT,
-    mp_votes JSONB NOT NULL DEFAULT '[]'::jsonb -- Zapis imienny każdego posła
+    mp_votes JSONB NOT NULL DEFAULT '[]'::jsonb -- Zapis JSON dla szybkiego odczytu
 );
 
 CREATE INDEX IF NOT EXISTS idx_votings_date ON parliamentary_votings(date);
 CREATE INDEX IF NOT EXISTS idx_votings_process ON parliamentary_votings(process_id);
 CREATE INDEX IF NOT EXISTS idx_votings_mp_gin ON parliamentary_votings USING GIN (mp_votes);
+
+-- Znormalizowana tabela relacji: voting_id <-> mp_id <-> vote_type
+CREATE TABLE IF NOT EXISTS parliamentary_mp_votes (
+    voting_id VARCHAR(100) NOT NULL REFERENCES parliamentary_votings(voting_id) ON DELETE CASCADE,
+    mp_id INT NOT NULL,
+    mp_name VARCHAR(255) NOT NULL,
+    club VARCHAR(50),
+    vote_type VARCHAR(20) NOT NULL, -- YES, NO, ABSTAIN, ABSENT
+    PRIMARY KEY (voting_id, mp_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mp_votes_lookup ON parliamentary_mp_votes(mp_id, vote_type);
+CREATE INDEX IF NOT EXISTS idx_mp_votes_club ON parliamentary_mp_votes(club, vote_type);
+
+-- ------------------------------------------------------------------------------
+-- 6. Rejestr Pobranych Dokumentów Binarnych (PDF Storage)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS downloaded_documents (
+    id SERIAL PRIMARY KEY,
+    document_type VARCHAR(50) NOT NULL, -- 'PRINT', 'OSR', 'JUSTIFICATION', 'RCL'
+    term INT NOT NULL,
+    associated_id VARCHAR(100) NOT NULL, -- np. numer druku / numer procesu
+    file_name VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size_bytes BIGINT NOT NULL,
+    sha256_hash VARCHAR(64) NOT NULL,
+    downloaded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_docs_associated ON downloaded_documents(term, associated_id);
+CREATE INDEX IF NOT EXISTS idx_docs_hash ON downloaded_documents(sha256_hash);
 
 -- ------------------------------------------------------------------------------
 -- 6. Ewaluacja LLM i Analiza Zgodności

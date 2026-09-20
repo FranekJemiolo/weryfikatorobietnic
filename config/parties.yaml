@@ -1,0 +1,45 @@
+# Konfiguracja monitorowania stron programowych partii i feedów rządowych
+parties:
+  - id: "KO"
+    name: "Koalicja Obywatelska"
+    monitored_urls:
+      - name: "100 Konkretów na pierwsze 100 dni"
+        url: "https://100konkretow.pl"
+        selector: "main"
+      - name: "Program Platformy Obywatelskiej"
+        url: "https://platforma.org/dokumenty"
+        selector: "article"
+
+  - id: "TD"
+    name: "Trzecia Droga (PSL - Polska 2050)"
+    monitored_urls:
+      - name: "Wspólna Lista Spraw Trzeciej Drogi"
+        url: "https://polska2050.pl/program"
+        selector: "main"
+
+  - id: "LEWICA"
+    name: "Nowa Lewica"
+    monitored_urls:
+      - name: "Program Wyborczy Lewicy"
+        url: "https://klub-lewica.org.pl/program"
+        selector: "main"
+
+  - id: "PIS"
+    name: "Prawo i Sprawiedliwość"
+    monitored_urls:
+      - name: "Program PiS"
+        url: "https://pis.org.pl/partia/program"
+        selector: "main"
+
+  - id: "KONF"
+    name: "Konfederacja"
+    monitored_urls:
+      - name: "Konstytucja Wolności"
+        url: "https://konfederacja.pl/program"
+        selector: "main"
+
+government_feeds:
+  - name: "KPRM Komunikaty Premiera"
+    url: "https://www.gov.pl/web/premier/komunikaty?format=rss"
+  - name: "Rządowy Proces Legislacyjny"
+    url: "https://legislacja.gov.pl/rss"

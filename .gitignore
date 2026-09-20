@@ -52,6 +52,7 @@ unittests.cfg
 
 # Docker & local storage
 postgres-data/
+data/
 *.sqlite
 *.sqlite3
 
