@@ -49,6 +49,25 @@ class MP(SQLModel, table=True):
     active: bool = Field(default=True, index=True, description="Czy mandat poselski jest aktywny")
 
     votes: list["MPVote"] = Relationship(back_populates="mp")
+    club_affiliations: list["MPClubAffiliation"] = Relationship(back_populates="mp")
+
+
+class MPClubAffiliation(SQLModel, table=True):
+    """Historia przynależności posła do klubów i kół parlamentarnych (transfery polityczne)."""
+
+    __tablename__ = "mp_club_affiliations"
+
+    id: int | None = Field(default=None, primary_key=True)
+    mp_id: int = Field(foreign_key="mps.id", index=True, description="ID posła")
+    club_name: str = Field(index=True, description="Nazwa klubu lub koła parlamentarnego")
+    start_date: datetime = Field(index=True, description="Data rozpoczęcia przynależności do klubu")
+    end_date: datetime | None = Field(
+        default=None,
+        index=True,
+        description="Data zakończenia przynależności (None oznacza bieżący klub)",
+    )
+
+    mp: MP | None = Relationship(back_populates="club_affiliations")
 
 
 class Voting(SQLModel, table=True):
@@ -153,6 +172,21 @@ class Bill(SQLModel, table=True):
         default=None,
         description="Syntetyczne podsumowanie Oceny Skutków Regulacji (OSR)",
     )
+    senate_status: str | None = Field(
+        default=None,
+        index=True,
+        description="Status prac w Senacie RP (np. PRZYJĘTA_BEZ_POPRAWEK, WNIESIONO_POPRAWKI, ODRZUCONA)",
+    )
+    president_signature_date: datetime | None = Field(
+        default=None,
+        index=True,
+        description="Data podpisania ustawy przez Prezydenta RP",
+    )
+    isap_publication_id: str | None = Field(
+        default=None,
+        index=True,
+        description="Identyfikator aktu w ISAP / Dzienniku Ustaw (np. WDU/2024/123)",
+    )
 
     evaluations: list["LLMEvaluation"] = Relationship(back_populates="bill")
     articles: list["BillArticle"] = Relationship(back_populates="bill")
@@ -196,6 +230,11 @@ class LLMEvaluation(SQLModel, table=True):
         default=None, description="Wypunktowane lub opisane luki i rozbieżności z obietnicą"
     )
     confidence_score: float = Field(default=1.0, description="Pewność oceny modelu od 0.0 do 1.0")
+    is_approved_by_human: bool = Field(
+        default=False,
+        index=True,
+        description="Flaga zatwierdzenia oceny LLM przez człowieka (Human-in-the-Loop)",
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         description="Czas wygenerowania oceny",

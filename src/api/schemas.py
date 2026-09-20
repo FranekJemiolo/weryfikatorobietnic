@@ -47,6 +47,7 @@ class PromiseEvaluationDetail(BaseModel):
     bill_print_num: str | None = None
     estimated_budget_impact_pln: float | None = None
     divergence_details: str | None = None
+    is_approved_by_human: bool = False
     relevant_articles: list[ArticleExcerpt] = Field(default_factory=list)
 
 

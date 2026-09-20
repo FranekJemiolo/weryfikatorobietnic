@@ -87,9 +87,13 @@ async def search_promises_endpoint(
 )
 async def list_promises(
     session: SessionDep,
+    only_approved: bool = Query(
+        default=True,
+        description="Zwracaj tylko oceny LLM zatwierdzone przez człowieka (Human-in-the-Loop)",
+    ),
 ) -> list[PromiseListItem]:
-    """Zwraca listę obietnic z zagregowaną oceną LLM oraz szacowanym wpływem budżetowym z OSR."""
-    return get_promises_summary(session)
+    """Zwraca listę obietnic z zagregowaną oceną LLM (domyślnie tylko zatwierdzone przez człowieka)."""
+    return get_promises_summary(session, only_approved=only_approved)
 
 
 @router.get(

@@ -31,6 +31,7 @@ from src.database.models import (
 def _map_promises_to_list_items(
     session: Session,
     promises: Sequence[Promise],
+    only_approved_evaluations: bool = True,
 ) -> list[PromiseListItem]:
     """Konwertuje sekwencję obiektów Promise na listę PromiseListItem bez problemu N+1."""
     bill_ids = {ev.bill_id for p in promises for ev in p.evaluations if ev.bill_id}
@@ -41,11 +42,12 @@ def _map_promises_to_list_items(
 
     results: list[PromiseListItem] = []
     for p in promises:
-        latest_eval = (
-            sorted(p.evaluations, key=lambda e: e.created_at, reverse=True)[0]
-            if p.evaluations
-            else None
-        )
+        evals = [
+            e
+            for e in p.evaluations
+            if not only_approved_evaluations or getattr(e, "is_approved_by_human", False)
+        ]
+        latest_eval = sorted(evals, key=lambda e: e.created_at, reverse=True)[0] if evals else None
 
         budget_impact: float | None = None
         if latest_eval and latest_eval.bill_id in bills_map:
@@ -73,7 +75,9 @@ def _map_promises_to_list_items(
     return results
 
 
-def get_promises_with_evaluations(session: Session) -> list[PromiseListItem]:
+def get_promises_with_evaluations(
+    session: Session, only_approved: bool = True
+) -> list[PromiseListItem]:
     """Pobiera obietnice zoptymalizowanym zapytaniem ze złączeniem ocen LLM (brak N+1)."""
     statement = (
         select(Promise)
@@ -81,7 +85,7 @@ def get_promises_with_evaluations(session: Session) -> list[PromiseListItem]:
         .order_by(desc(col(Promise.created_at)))
     )
     promises = session.exec(statement).all()
-    return _map_promises_to_list_items(session, promises)
+    return _map_promises_to_list_items(session, promises, only_approved_evaluations=only_approved)
 
 
 # Alias dla kompatybilności wstecznej
@@ -151,6 +155,7 @@ def search_promises(
     category: str | None = None,
     limit: int = 20,
     offset: int = 0,
+    only_approved: bool = True,
 ) -> tuple[list[PromiseListItem], int]:
     """Wyszukuje obietnice wyborcze według frazy tekstowej (ILIKE) oraz kryteriów partii, statusu i kategorii."""
     conditions = []
@@ -176,13 +181,12 @@ def search_promises(
             conditions.append(col(Promise.status) == PromiseStatus(stat_upper))
         else:
             # Wyszukiwanie po alignment_status ewaluacji LLM (np. W_PELNI, CZESCIOWO, SPRZECZNA)
-            conditions.append(
-                col(Promise.id).in_(
-                    select(LLMEvaluation.promise_id).where(
-                        col(LLMEvaluation.alignment_status) == stat_upper
-                    )
-                )
+            eval_subquery = select(LLMEvaluation.promise_id).where(
+                col(LLMEvaluation.alignment_status) == stat_upper
             )
+            if only_approved:
+                eval_subquery = eval_subquery.where(col(LLMEvaluation.is_approved_by_human))
+            conditions.append(col(Promise.id).in_(eval_subquery))
 
     count_stmt = select(func.count(col(Promise.id)))
     if conditions:
@@ -200,7 +204,7 @@ def search_promises(
         data_stmt = data_stmt.where(and_(*conditions))
     promises = session.exec(data_stmt).all()
 
-    items = _map_promises_to_list_items(session, promises)
+    items = _map_promises_to_list_items(session, promises, only_approved_evaluations=only_approved)
     return items, int(total)
 
 
@@ -212,18 +216,22 @@ def get_mp_by_id(session: Session, mp_id: int) -> MP | None:
 def get_promise_evaluation_detail(
     session: Session,
     promise_id: str,
+    only_approved: bool = False,
 ) -> PromiseEvaluationDetail | None:
     """Zwraca szczegółową ewaluację obietnicy wraz z powiązanymi artykułami prawnymi."""
     promise = session.get(Promise, promise_id)
     if not promise:
         return None
 
-    latest_eval = session.exec(
+    eval_stmt = (
         select(LLMEvaluation)
         .where(col(LLMEvaluation.promise_id) == promise_id)
         .order_by(desc(col(LLMEvaluation.created_at)))
-        .limit(1)
-    ).first()
+    )
+    if only_approved:
+        eval_stmt = eval_stmt.where(col(LLMEvaluation.is_approved_by_human))
+
+    latest_eval = session.exec(eval_stmt.limit(1)).first()
 
     bill: Bill | None = None
     articles: list[ArticleExcerpt] = []
@@ -249,6 +257,7 @@ def get_promise_evaluation_detail(
         alignment_status=latest_eval.alignment_status.value if latest_eval else None,
         justification=latest_eval.justification if latest_eval else None,
         confidence_score=latest_eval.confidence_score if latest_eval else None,
+        is_approved_by_human=latest_eval.is_approved_by_human if latest_eval else False,
         bill_id=bill.id if bill else None,
         bill_title=bill.title if bill else None,
         bill_print_num=bill.sejm_print_num if bill else None,
