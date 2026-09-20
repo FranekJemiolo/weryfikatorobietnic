@@ -1,14 +1,33 @@
 import React, { Suspense } from "react";
 import type { Metadata } from "next";
-import { Vote, FileCheck2, Sparkles } from "lucide-react";
 import { GovernmentScoreDashboard } from "@/components/GovernmentScoreDashboard";
 import { PromisesCatalog } from "@/components/PromisesCatalog";
+import {
+  HeroSection,
+  ArchitectureBento,
+  ContributeSection,
+} from "@/components/landing";
 import type { PromiseListItem } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Weryfikator Obietnic: Stan na dziś | Big Picture & Audyt Obywatelski",
+  title: "Weryfikator Obietnic | Obywatelski Audyt AI Prawa RP",
   description:
-    "Bieżący stan realizacji obietnic wyborczych partii politycznych w X Kadencji Sejmu RP. Dashboard efektywności rządu (Government Score), wyszukiwarka z filtrami oraz analiza OSR.",
+    "Automatyczna weryfikacja obietnic wyborczych partii politycznych z projektami ustaw w Sejmie RP X Kadencji. System AI RAG + pgvector, Apache Airflow, FastAPI. Open Source · MIT.",
+  keywords: [
+    "obietnice wyborcze",
+    "Sejm RP",
+    "AI audyt",
+    "transparentność",
+    "civic tech",
+    "open source",
+  ],
+  openGraph: {
+    title: "Weryfikator Obietnic | Obywatelski Audyt AI Prawa RP",
+    description:
+      "Sprawdź, czy politycy dotrzymują obietnic. System AI weryfikuje deklaracje wyborcze z rzeczywistymi aktami prawnymi.",
+    type: "website",
+    locale: "pl_PL",
+  },
 };
 
 /**
@@ -28,66 +47,85 @@ async function getPromises(): Promise<PromiseListItem[]> {
 
     return res.json();
   } catch (error) {
-    console.error("Błąd połączenia z API podczas renderowania po stronie serwera:", error);
+    console.error(
+      "Błąd połączenia z API podczas renderowania po stronie serwera:",
+      error
+    );
     return [];
   }
 }
 
 /**
- * Asynchroniczny React Server Component (RSC) dla strony głównej.
+ * Strona główna — Landing Page + Dashboard Obywatelski
+ *
+ * Struktura:
+ *   1. HeroSection      – hero animowany framer-motion + statystyki
+ *   2. GovernmentScore  – panel analityczny efektywności rządu
+ *   3. PromisesCatalog  – wyszukiwarka + katalog obietnic (ISR)
+ *   4. ArchitectureBento– bento-grid z architekturą systemu
+ *   5. ContributeSection– sekcja open-source / jak dołączyć
  */
 export default async function HomePage() {
   const promises = await getPromises();
 
   return (
-    <div className="space-y-10 pb-16">
-      {/* Sekcja Hero / Wprowadzenie */}
-      <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900/90 to-indigo-950/40 p-6 sm:p-10 shadow-2xl">
-        <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-300">
-            <Vote className="h-3.5 w-3.5" />
-            <span>X Kadencja Sejmu RP • Audytor AI</span>
-          </div>
+    <div className="space-y-0">
+      {/* 1. Hero */}
+      <HeroSection />
 
-          <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-4xl">
-            Weryfikator Obietnic:{" "}
-            <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
-              Stan na dziś
-            </span>
-          </h1>
+      {/* Divider */}
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-700/50 to-transparent" />
 
-          <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-            Automatyczny audyt legislacyjny zderzający deklaracje wyborcze z rzeczywistymi
-            zapisami projektów ustaw procedowanych w polskim parlamencie.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-slate-400">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
-              Wnioskowanie RAG na pgvector
-            </span>
-            <span>•</span>
-            <span className="flex items-center gap-1.5">
-              <FileCheck2 className="h-3.5 w-3.5 text-emerald-400" />
-              Wycena kosztów OSR w PLN
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* ZADANIE 2: Główny Panel Analityczny (Overall Government Score) */}
-      <section>
+      {/* 2. Government Score Dashboard */}
+      <section className="py-10">
         <GovernmentScoreDashboard />
       </section>
 
-      {/* ZADANIE 3: Wyszukiwarka i Filtry (FilterBar) wraz z Katalogiem Obietnic */}
-      <Suspense
-        fallback={
-          <div className="h-96 rounded-xl border border-slate-800 bg-slate-900/40 animate-pulse" />
-        }
-      >
-        <PromisesCatalog initialPromises={promises} />
-      </Suspense>
+      {/* Divider */}
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-700/50 to-transparent" />
+
+      {/* 3. Katalog Obietnic */}
+      <section className="py-10">
+        <Suspense
+          fallback={
+            <div className="h-96 rounded-xl border border-slate-800 bg-slate-900/40 animate-pulse" />
+          }
+        >
+          <PromisesCatalog initialPromises={promises} />
+        </Suspense>
+      </section>
+
+      {/* Divider */}
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-700/50 to-transparent" />
+
+      {/* 4. Architecture Bento Grid */}
+      <ArchitectureBento />
+
+      {/* Divider */}
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-700/50 to-transparent" />
+
+      {/* 5. Contribute / Open Source */}
+      <ContributeSection />
+
+      {/* Footer */}
+      <footer className="py-12 text-center">
+        <p className="text-xs text-slate-500">
+          Weryfikator Obietnic © 2025 · Licencja MIT ·{" "}
+          <a
+            href="https://github.com/FranekJemiolo/traceplay"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-400 hover:text-white transition-colors"
+          >
+            GitHub
+          </a>{" "}
+          · Dane z API Sejmu RP, ISAP, RCL
+        </p>
+        <p className="mt-2 text-[10px] text-slate-600">
+          System nie zastępuje oficjalnych źródeł prawa. Werdykty AI są wskazówką
+          analityczną, nie interpretacją prawną.
+        </p>
+      </footer>
     </div>
   );
 }
