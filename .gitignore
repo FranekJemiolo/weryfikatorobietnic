@@ -63,3 +63,16 @@ data/raw/
 .vscode/
 *.swp
 *.swo
+
+# Frontend / Next.js / PWA
+node_modules/
+.pnpm-store/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+public/sw.js*
+public/workbox-*
+public/swe-worker-*
+pnpm-debug.log*

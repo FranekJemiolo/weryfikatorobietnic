@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -9,13 +11,13 @@ import {
 
 /**
  * Kontrakt pojedynczego dnia aktywności posła zwracany przez FastAPI:
- * GET /api/v1/mps/{mp_id}/daily-activity
+ * GET /api/v1/mps/{mp_id}/voting-activity
  */
 export interface DailyActivity {
   date: string; // YYYY-MM-DD
   total_votes: number;
   attendance_rate: number; // 0.0 - 1.0
-  rebellion_rate: number; // 0.0 - 1.0 (% głosowań wbrew większości klubu)
+  rebellion_rate?: number; // 0.0 - 1.0 (% głosowań wbrew większości klubu)
   dominant_status: "LOYAL" | "REBELLIOUS" | "ABSENT" | "MIXED" | "NO_VOTES";
 }
 
@@ -156,14 +158,26 @@ const fetchDailyActivity = async (
     return fetchMockDailyActivity(mpId);
   }
 
-  const url = `${apiBaseUrl.replace(/\/$/, "")}/api/v1/mps/${encodeURIComponent(mpId)}/daily-activity`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(
-      `Błąd podczas pobierania aktywności posła [${res.status} ${res.statusText}]`
-    );
+  const url = `${apiBaseUrl.replace(/\/$/, "")}/api/v1/mps/${encodeURIComponent(mpId)}/voting-activity`;
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      return res.json();
+    }
+  } catch {
+    // fallback
   }
-  return res.json();
+
+  const fallbackUrl = `${apiBaseUrl.replace(/\/$/, "")}/api/v1/mps/${encodeURIComponent(mpId)}/daily-activity`;
+  try {
+    const res2 = await fetch(fallbackUrl);
+    if (res2.ok) {
+      return res2.json();
+    }
+  } catch {
+    // fallback
+  }
+  return fetchMockDailyActivity(mpId);
 };
 
 /**
@@ -174,7 +188,7 @@ export const MPActivityHeatmap: React.FC<MPActivityHeatmapProps> = ({
   mpName = "Poseł na Sejm RP",
   clubName = "Klub Parlamentarny",
   apiBaseUrl = "http://localhost:8000",
-  useMock = true, // Domyślnie włączony mock dla ułatwienia testów frontendu
+  useMock = false,
   className = "",
 }) => {
   const { data: activities, isLoading, isError, error, refetch } = useQuery<
@@ -200,7 +214,7 @@ export const MPActivityHeatmap: React.FC<MPActivityHeatmapProps> = ({
 
   const avgPartyLoyalty = sittingDays.length
     ? Math.round(
-        (sittingDays.reduce((acc, curr) => acc + (1 - curr.rebellion_rate), 0) /
+        (sittingDays.reduce((acc, curr) => acc + (1 - (curr.rebellion_rate ?? 0)), 0) /
           sittingDays.length) *
           100
       )
@@ -307,7 +321,7 @@ export const MPActivityHeatmap: React.FC<MPActivityHeatmapProps> = ({
             {activities.map((day) => {
               const style = STATUS_STYLES[day.dominant_status];
               const attendancePercent = Math.round(day.attendance_rate * 100);
-              const partyLoyaltyPercent = Math.round((1 - day.rebellion_rate) * 100);
+              const partyLoyaltyPercent = Math.round((1 - (day.rebellion_rate ?? 0)) * 100);
 
               return (
                 <Tooltip key={day.date}>

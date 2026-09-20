@@ -1,0 +1,177 @@
+name: CI/CD Pipeline - Weryfikator Obietnic
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'weryfikator-obietnic' }}
+  REGION: europe-central2 # Region Warszawa dla minimalnych opóźnień
+  GAR_REPOSITORY: weryfikator-registry
+  BACKEND_SERVICE_NAME: weryfikator-api
+  FRONTEND_SERVICE_NAME: weryfikator-web
+  WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  WIF_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+jobs:
+  test-and-lint:
+    name: Test & Lint (Backend & Frontend)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------------
+      # BACKEND (Python + uv)
+      # -------------------------------------------------------------
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Setup Python
+        run: uv python install 3.12
+
+      - name: Install Backend Dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Backend Code Formatting & Linting (Ruff)
+        run: |
+          uv run ruff check src/ tests/ dags/
+          uv run ruff format --check src/ tests/ dags/
+
+      - name: Backend Type Checking (mypy)
+        run: uv run mypy src/ tests/ dags/
+
+      - name: Backend Unit & Integration Tests (pytest)
+        run: uv run pytest -v --maxfail=1
+
+      # -------------------------------------------------------------
+      # FRONTEND (Next.js + pnpm)
+      # -------------------------------------------------------------
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: frontend/package.json
+
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Frontend TypeScript Typecheck
+        working-directory: ./frontend
+        run: pnpm run typecheck
+
+  deploy-gcp:
+    name: Deploy to Google Cloud Run
+    needs: [test-and-lint]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write # Wymagane dla OIDC / Workload Identity Federation
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------------
+      # GCP AUTHENTICATION (Workload Identity Federation)
+      # -------------------------------------------------------------
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Docker Auth to Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # -------------------------------------------------------------
+      # BUILD & PUSH DOCKER IMAGES
+      # -------------------------------------------------------------
+      - name: Build & Push Backend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.BACKEND_SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.BACKEND_SERVICE_NAME }}:latest
+
+      - name: Build & Push Frontend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.FRONTEND_SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.FRONTEND_SERVICE_NAME }}:latest
+
+      # -------------------------------------------------------------
+      # DEPLOY TO GOOGLE CLOUD RUN
+      # -------------------------------------------------------------
+      - name: Deploy Backend to Cloud Run
+        id: deploy-backend
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.BACKEND_SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.BACKEND_SERVICE_NAME }}:${{ github.sha }}
+          flags: |
+            --allow-unauthenticated
+            --min-instances=0
+            --max-instances=10
+            --memory=512Mi
+            --cpu=1
+          env_vars: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+
+      - name: Deploy Frontend PWA to Cloud Run
+        id: deploy-frontend
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.FRONTEND_SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.FRONTEND_SERVICE_NAME }}:${{ github.sha }}
+          flags: |
+            --allow-unauthenticated
+            --min-instances=0
+            --max-instances=5
+            --memory=512Mi
+            --cpu=1
+          env_vars: |
+            NEXT_PUBLIC_API_URL=${{ steps.deploy-backend.outputs.url }}
+
+      - name: Summary of Deployment
+        run: |
+          echo "### Wdrożenie zakończone sukcesem! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend API URL**: ${{ steps.deploy-backend.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend PWA URL**: ${{ steps.deploy-frontend.outputs.url }}" >> $GITHUB_STEP_SUMMARY
