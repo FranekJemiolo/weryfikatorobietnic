@@ -38,9 +38,9 @@ def get_engine(url: str | None = None, echo: bool = False) -> Engine:
     )
 
 
-def get_session(engine: Engine | None = None) -> Generator[Session, None, None]:
+def get_session() -> Generator[Session, None, None]:
     """Generator sesji bazy danych (przydatny m.in. jako Depends w FastAPI)."""
-    db_engine = engine or get_engine()
+    db_engine = get_engine()
     with Session(db_engine) as session:
         yield session
 

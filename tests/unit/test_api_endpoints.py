@@ -1,10 +1,48 @@
-"""Testy jednostkowe endpointów REST API FastAPI."""
+from collections.abc import Generator
 
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, create_engine
 
 from src.api import app
+from src.database.engine import get_session, init_db
+from src.database.models import MP, Promise, PromiseStatus
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def setup_test_db() -> Generator[None, None, None]:
+    """Inicjalizuje bazę in-memory SQLite ze StaticPool dla endpointów FastAPI."""
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    init_db(engine)
+
+    with Session(engine) as session:
+        mp = MP(id=1, first_name="Donald", last_name="Tusk", club="KO", active=True)
+        promise = Promise(
+            id="KO-01",
+            party="KO",
+            title="Kwota wolna 60 000 zł",
+            full_text="Podniesiemy kwotę wolną od podatku do 60 tys. zł.",
+            category="Gospodarka",
+            status=PromiseStatus.IN_PROGRESS,
+        )
+        session.add(mp)
+        session.add(promise)
+        session.commit()
+
+    def override_get_session() -> Generator[Session, None, None]:
+        with Session(engine) as s:
+            yield s
+
+    app.dependency_overrides[get_session] = override_get_session
+    yield
+    app.dependency_overrides.clear()
 
 
 def test_health_check() -> None:
@@ -14,7 +52,38 @@ def test_health_check() -> None:
     data = response.json()
     assert "status" in data
     assert "database_connected" in data
-    assert data["version"] == "0.1.0"
+    assert data["version"] == "0.2.0"
+
+
+def test_get_promises_list() -> None:
+    """Weryfikuje pobieranie listy obietnic z zagregowaną oceną i kosztem OSR."""
+    response = client.get("/api/v1/promises")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert data[0]["id"] == "KO-01"
+
+
+def test_get_promise_evaluation_404() -> None:
+    """Weryfikuje obsługę błędu 404 dla nieistniejącej obietnicy."""
+    response = client.get("/api/v1/promises/NIE-ISTNIEJE-999/evaluation")
+    assert response.status_code == 404
+    detail = response.json().get("detail", "")
+    assert "Nie znaleziono" in detail
+
+
+def test_get_mp_voting_activity_endpoint() -> None:
+    """Weryfikuje endpoint /api/v1/mps/{id}/voting-activity dla heatmapy."""
+    response = client.get("/api/v1/mps/1/voting-activity")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    if data:
+        assert "date" in data[0]
+        assert "total_votes" in data[0]
+        assert "attendance_rate" in data[0]
+        assert "dominant_status" in data[0]
 
 
 def test_get_promise_status_known_mock() -> None:
