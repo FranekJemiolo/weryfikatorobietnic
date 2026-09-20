@@ -54,4 +54,17 @@ class DailyActivityItem(BaseModel):
     date: str
     total_votes: int
     attendance_rate: float
+    rebellion_rate: float | None = 0.0
     dominant_status: Literal["LOYAL", "REBELLIOUS", "ABSENT", "MIXED", "NO_VOTES"]
+
+
+class MPProfileResponse(BaseModel):
+    """Szczegółowe dane posła na Sejm RP."""
+
+    id: int
+    first_name: str
+    last_name: str
+    club: str
+    active: bool
+
+    model_config = ConfigDict(from_attributes=True)

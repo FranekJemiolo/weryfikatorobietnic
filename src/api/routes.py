@@ -1,17 +1,20 @@
 """Routing endpointów FastAPI dla Weryfikatora Obietnic."""
 
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from src.api.crud import (
+    get_mp_by_id,
     get_mp_voting_activity,
     get_promise_evaluation_detail,
     get_promises_summary,
 )
 from src.api.schemas import (
     DailyActivityItem,
+    MPProfileResponse,
     PromiseEvaluationDetail,
     PromiseListItem,
 )
@@ -53,6 +56,26 @@ async def get_promise_evaluation(
             detail=f"Nie znaleziono obietnicy o identyfikatorze '{id}'.",
         )
     return detail
+
+
+@router.get(
+    "/mps/{id}",
+    response_model=MPProfileResponse,
+    tags=["Posłowie"],
+    summary="Szczegóły profilu posła",
+)
+async def get_mp_profile(
+    id: int,
+    session: SessionDep,
+) -> MPProfileResponse:
+    """Zwraca dane profilowe posła (imię, nazwisko, klub, status aktywności)."""
+    mp = get_mp_by_id(session, mp_id=id)
+    if not mp:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Nie znaleziono posła o identyfikatorze '{id}'.",
+        )
+    return MPProfileResponse.model_validate(mp)
 
 
 @router.get(
@@ -130,7 +153,6 @@ async def get_promise_card_status(
         "source_print_number": "Druk nr 105",
     }
 
-
 @router.get(
     "/mps/{mp_id}/daily-activity",
     tags=["Posłowie (PWA Mock)"],
@@ -141,6 +163,19 @@ async def get_mp_daily_activity_endpoint(
     session: SessionDep,
 ) -> list[dict[str, Any]]:
     activities = get_mp_voting_activity(session, mp_id=mp_id) or []
+    if not activities:
+        base_date = datetime.now(UTC).date()
+        return [
+            {
+                "date": (base_date - timedelta(days=i)).isoformat(),
+                "total_votes": 28 if i % 2 == 0 else 0,
+                "attendance_rate": 1.0 if i % 2 == 0 else 0.0,
+                "rebellion_rate": 0.05 if i % 4 == 0 else 0.0,
+                "dominant_status": "LOYAL" if i % 2 == 0 else "NO_VOTES",
+            }
+            for i in range(29, -1, -1)
+        ]
+
     return [
         {
             "date": a.date,

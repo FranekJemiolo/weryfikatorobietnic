@@ -1,9 +1,9 @@
 """Warstwa dostępu do danych (CRUD / Repozytorium) dla REST API."""
 
 from collections import defaultdict
-from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, desc, select
 
 from src.api.schemas import (
@@ -24,25 +24,39 @@ from src.database.models import (
 )
 
 
-def get_promises_summary(session: Session) -> list[PromiseListItem]:
-    """Pobiera listę obietnic wraz z najnowszą oceną LLM oraz szacowanym wpływem z OSR."""
-    promises = session.exec(select(Promise).order_by(desc(col(Promise.created_at)))).all()
-    results: list[PromiseListItem] = []
+def get_promises_with_evaluations(session: Session) -> list[PromiseListItem]:
+    """Pobiera obietnice zoptymalizowanym zapytaniem ze złączeniem ocen LLM (brak N+1)."""
+    statement = (
+        select(Promise)
+        .options(selectinload(Promise.evaluations))  # type: ignore[arg-type]
+        .order_by(desc(col(Promise.created_at)))
+    )
+    promises = session.exec(statement).all()
 
+    # Pre-fetch ustaw powiązanych z ewaluacjami, aby uniknąć zapytań w pętli
+    bill_ids = {
+        ev.bill_id
+        for p in promises
+        for ev in p.evaluations
+        if ev.bill_id
+    }
+    bills_map: dict[str, Bill] = {}
+    if bill_ids:
+        bills = session.exec(select(Bill).where(col(Bill.id).in_(bill_ids))).all()
+        bills_map = {b.id: b for b in bills}
+
+    results: list[PromiseListItem] = []
     for p in promises:
-        # Pobranie najnowszej ewaluacji
-        latest_eval = session.exec(
-            select(LLMEvaluation)
-            .where(col(LLMEvaluation.promise_id) == p.id)
-            .order_by(desc(col(LLMEvaluation.created_at)))
-            .limit(1)
-        ).first()
+        # Najświeższa ewaluacja LLM dla danej obietnicy
+        latest_eval = (
+            sorted(p.evaluations, key=lambda e: e.created_at, reverse=True)[0]
+            if p.evaluations
+            else None
+        )
 
         budget_impact: float | None = None
-        if latest_eval:
-            bill = session.get(Bill, latest_eval.bill_id)
-            if bill:
-                budget_impact = bill.estimated_budget_impact_pln
+        if latest_eval and latest_eval.bill_id in bills_map:
+            budget_impact = bills_map[latest_eval.bill_id].estimated_budget_impact_pln
 
         raw_alignment = latest_eval.alignment_status.value if latest_eval else None
         alignment_val = cast(
@@ -64,6 +78,15 @@ def get_promises_summary(session: Session) -> list[PromiseListItem]:
         )
 
     return results
+
+
+# Alias dla kompatybilności wstecznej
+get_promises_summary = get_promises_with_evaluations
+
+
+def get_mp_by_id(session: Session, mp_id: int) -> MP | None:
+    """Pobiera dane posła po identyfikatorze numerycznym."""
+    return session.get(MP, mp_id)
 
 
 def get_promise_evaluation_detail(
@@ -117,9 +140,9 @@ def get_mp_voting_activity(
     session: Session,
     mp_id: int,
 ) -> list[DailyActivityItem] | None:
-    """Oblicza dzienną frekwencję i status aktywności posła z tabel MP, Voting i MPVote."""
+    """Oblicza rzeczywistą dzienną frekwencję i status aktywności posła z tabel MP, Voting i MPVote."""
     mp = session.get(MP, mp_id)
-    if not mp and mp_id > 1000:
+    if not mp:
         return None
 
     # Pobranie wszystkich zarejestrowanych głosów tego posła
@@ -132,32 +155,7 @@ def get_mp_voting_activity(
     rows = session.exec(votes_statement).all()
 
     if not rows:
-        # Jeśli w bazie nie ma jeszcze zarejestrowanych głosów dla tego posła,
-        # zwracamy wyliczone kalendarium z ostatnich 30 dni posiedzeń
-        activities: list[DailyActivityItem] = []
-        base_date = datetime.now(UTC).date()
-        for i in range(29, -1, -1):
-            d = base_date - timedelta(days=i)
-            is_sitting = d.weekday() in (1, 2, 3) and (i % 2 == 0)
-            if not is_sitting:
-                activities.append(
-                    DailyActivityItem(
-                        date=d.isoformat(),
-                        total_votes=0,
-                        attendance_rate=0.0,
-                        dominant_status="NO_VOTES",
-                    )
-                )
-            else:
-                activities.append(
-                    DailyActivityItem(
-                        date=d.isoformat(),
-                        total_votes=28,
-                        attendance_rate=1.0 if i % 9 != 0 else 0.4,
-                        dominant_status="LOYAL" if i % 9 != 0 else "ABSENT",
-                    )
-                )
-        return activities
+        return []
 
     # Grupowanie oddanych głosów po dacie dziennej
     day_groups: dict[str, list[MPVote]] = defaultdict(list)
@@ -186,6 +184,7 @@ def get_mp_voting_activity(
                 date=day_str,
                 total_votes=total,
                 attendance_rate=att_rate,
+                rebellion_rate=0.0,
                 dominant_status=dominant_status,
             )
         )
