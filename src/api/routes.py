@@ -54,7 +54,9 @@ async def search_promises_endpoint(
     session: SessionDep,
     q: str | None = Query(default=None, description="Fraza wyszukiwania w tytule i treści"),
     party: str | None = Query(default=None, description="Filtr po partii politycznej"),
-    status: str | None = Query(default=None, description="Filtr po statusie obietnicy lub zgodności"),
+    status: str | None = Query(
+        default=None, description="Filtr po statusie obietnicy lub zgodności"
+    ),
     category: str | None = Query(default=None, description="Filtr po kategorii"),
     limit: int = Query(default=20, ge=1, le=100, description="Limit wyników na stronę"),
     offset: int = Query(default=0, ge=0, description="Przesunięcie paginacji"),
@@ -224,6 +226,7 @@ async def get_promise_card_status(
         "divergence_details": None,
         "source_print_number": "Druk nr 105",
     }
+
 
 @router.get(
     "/mps/{mp_id}/daily-activity",

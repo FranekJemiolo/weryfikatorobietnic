@@ -24,10 +24,19 @@ console = Console()
 
 @app.command(name="add-promise")
 def add_promise(
-    party: Annotated[str, typer.Option("--party", "-p", help="Skrót partii lub komitetu (np. KO, PiS, Lewica, TD, Konfederacja)")],
+    party: Annotated[
+        str,
+        typer.Option(
+            "--party",
+            "-p",
+            help="Skrót partii lub komitetu (np. KO, PiS, Lewica, TD, Konfederacja)",
+        ),
+    ],
     title: Annotated[str, typer.Option("--title", "-t", help="Tytuł deklaracji wyborczej")],
     text: Annotated[str, typer.Option("--text", "-d", help="Pełna treść złożonej obietnicy")],
-    category: Annotated[str, typer.Option("--category", "-c", help="Kategoria merytoryczna")] = "Gospodarka",
+    category: Annotated[
+        str, typer.Option("--category", "-c", help="Kategoria merytoryczna")
+    ] = "Gospodarka",
 ) -> None:
     """Dodaje nową obietnicę wyborczą bezpośrednio do bazy danych PostgreSQL."""
     clean_party = party.strip().upper()
@@ -83,8 +92,13 @@ def add_promise(
 
 @app.command(name="force-evaluate")
 def force_evaluate(
-    bill_id: Annotated[str, typer.Option("--bill-id", "-b", help="Identyfikator projektu ustawy w bazie danych")],
-    top_k: Annotated[int, typer.Option("--top-k", "-k", help="Liczba najbardziej pasujących artykułów z pgvector")] = 5,
+    bill_id: Annotated[
+        str, typer.Option("--bill-id", "-b", help="Identyfikator projektu ustawy w bazie danych")
+    ],
+    top_k: Annotated[
+        int,
+        typer.Option("--top-k", "-k", help="Liczba najbardziej pasujących artykułów z pgvector"),
+    ] = 5,
 ) -> None:
     """Ręcznie wyzwala proces generowania wektorów i wnioskowania LLM dla konkretnego druku sejmowego."""
     engine = get_engine()
@@ -92,11 +106,15 @@ def force_evaluate(
         bill = session.get(Bill, bill_id)
         if not bill:
             # Sprawdzenie czy podano sejm_print_num zamiast id
-            bill_by_print = session.exec(select(Bill).where(col(Bill.sejm_print_num) == bill_id)).first()
+            bill_by_print = session.exec(
+                select(Bill).where(col(Bill.sejm_print_num) == bill_id)
+            ).first()
             if bill_by_print:
                 bill = bill_by_print
             else:
-                console.print(f"[bold red]BŁĄD:[/bold red] Nie znaleziono projektu ustawy o ID lub druku '{bill_id}'.")
+                console.print(
+                    f"[bold red]BŁĄD:[/bold red] Nie znaleziono projektu ustawy o ID lub druku '{bill_id}'."
+                )
                 raise typer.Exit(code=1)
 
         # Sprawdzenie obecności artykułów ustawy
@@ -159,7 +177,8 @@ def force_evaluate(
                 promise.party,
                 status_style,
                 f"{evaluation.score * 100:.0f}%",
-                evaluation.justification[:100] + ("..." if len(evaluation.justification) > 100 else ""),
+                evaluation.justification[:100]
+                + ("..." if len(evaluation.justification) > 100 else ""),
             )
 
     console.print(results_table)

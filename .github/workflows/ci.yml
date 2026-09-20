@@ -32,7 +32,12 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Check code formatting and linting (Ruff)
-        run: uv run ruff check .
+        run: |
+          uv run ruff check .
+          uv run ruff format --check src/ tests/ dags/
+
+      - name: Backend Type Checking (mypy)
+        run: uv run mypy src/ tests/ dags/
 
       - name: Run backend tests (Pytest)
         run: uv run pytest -v
@@ -68,3 +73,8 @@ jobs:
       - name: Run ESLint
         working-directory: ./frontend
         run: pnpm lint
+
+      - name: Build Next.js
+        working-directory: ./frontend
+        run: pnpm run build
+

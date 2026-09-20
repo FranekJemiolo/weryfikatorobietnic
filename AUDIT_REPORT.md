@@ -34,7 +34,9 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 - **Diagnoza:** W modelu `BillArticle` ([`src/database/models.py`](file:///Users/franek/personal_workspace/weryfikatorobietnic/src/database/models.py)) kolumna `embedding: list[float]` ma przypisany typ `Vector(1536)`, jednak w schemacie bazy danych brakuje definicji dedykowanego indeksu wektorowego **HNSW** (*Hierarchical Navigable Small World*).
 - **Ryzyko:** Przy rosnącej liczbie procedowanych ustaw (dziesiątki tysięcy artykułów prawnych) zapytanie z operatorem dystansu kosinusowego:
   ```python
-  statement = select(BillArticle).order_by(BillArticle.embedding.cosine_distance(query_vector)).limit(top_k)
+  statement = (
+      select(BillArticle).order_by(BillArticle.embedding.cosine_distance(query_vector)).limit(top_k)
+  )
   ```
   wykonuje pełny skan sekwencyjny dysku (**Seq Scan**) o złożoności $\mathcal{O}(N \cdot D)$, degradując czas odpowiedzi z kilku milisekund do kilkunastu sekund.
 - **Rozwiązanie:** Utworzenie indeksu HNSW z metryką odległości kosinusowej (`vector_cosine_ops`).
@@ -53,7 +55,7 @@ WITH (m = 16, ef_construction = 64);
 ### 1.3. Niekontrolowany Wzrost Pamięci RAM przy Parsowaniu PDF (Airflow OOM Risk)
 - **Diagnoza:** Funkcja `download_pdf` w [`src/parsers/document_parser.py`](file:///Users/franek/personal_workspace/weryfikatorobietnic/src/parsers/document_parser.py) wczytuje całą zawartość dokumentu do pamięci RAM jako `bytes`:
   ```python
-  content = response.content # Pobranie całego pliku do RAM
+  content = response.content  # Pobranie całego pliku do RAM
   return content
   ```
 - **Ryzyko:** Załączniki sejmowe i wielotomowe projekty ustaw (np. ustawa budżetowa, tarcze legislacyjne) potrafią ważyć od 80 MB do ponad 300 MB. Gdy równoległe taski w Apache Airflow pobiorą kilkanaście takich plików, dochodzi do natychmiastowego zabicia workera przez mechanizm jądra Linuksa (**Linux OOM Killer**).
@@ -64,6 +66,7 @@ WITH (m = 16, ef_construction = 64);
 # src/parsers/document_parser.py
 from pathlib import Path
 import httpx
+
 
 def download_pdf_to_file(url: str, target_path: Path, timeout: float = 60.0) -> Path:
     """Strumieniowe pobieranie PDF bezpośrednio na dysk bez buforowania całości w pamięci RAM."""

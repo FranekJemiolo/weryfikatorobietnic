@@ -33,12 +33,7 @@ def _map_promises_to_list_items(
     promises: Sequence[Promise],
 ) -> list[PromiseListItem]:
     """Konwertuje sekwencję obiektów Promise na listę PromiseListItem bez problemu N+1."""
-    bill_ids = {
-        ev.bill_id
-        for p in promises
-        for ev in p.evaluations
-        if ev.bill_id
-    }
+    bill_ids = {ev.bill_id for p in promises for ev in p.evaluations if ev.bill_id}
     bills_map: dict[str, Bill] = {}
     if bill_ids:
         bills = session.exec(select(Bill).where(col(Bill.id).in_(bill_ids))).all()
@@ -209,7 +204,6 @@ def search_promises(
     return items, int(total)
 
 
-
 def get_mp_by_id(session: Session, mp_id: int) -> MP | None:
     """Pobiera dane posła po identyfikatorze numerycznym."""
     return session.get(MP, mp_id)
@@ -259,7 +253,9 @@ def get_promise_evaluation_detail(
         bill_title=bill.title if bill else None,
         bill_print_num=bill.sejm_print_num if bill else None,
         estimated_budget_impact_pln=bill.estimated_budget_impact_pln if bill else None,
-        divergence_details=getattr(latest_eval, "divergence_details", None) if latest_eval else None,
+        divergence_details=getattr(latest_eval, "divergence_details", None)
+        if latest_eval
+        else None,
         relevant_articles=articles,
     )
 
@@ -360,9 +356,8 @@ def get_promise_timeline(
         "PODPISANA",
     )
     passed_sejm = has_bill and bill_status in ("UCHWALONA", "SENAT", "PODPISANA")
-    is_signed = (
-        promise.status == PromiseStatus.FULFILLED
-        or (has_bill and bill_status in ("UCHWALONA", "PODPISANA"))
+    is_signed = promise.status == PromiseStatus.FULFILLED or (
+        has_bill and bill_status in ("UCHWALONA", "PODPISANA")
     )
 
     return [
@@ -399,4 +394,3 @@ def get_promise_timeline(
             is_completed=is_signed,
         ),
     ]
-

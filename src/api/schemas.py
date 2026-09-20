@@ -98,4 +98,3 @@ class PromiseSearchResponse(BaseModel):
     total: int
     limit: int
     offset: int
-

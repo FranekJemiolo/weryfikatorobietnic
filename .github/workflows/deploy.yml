@@ -80,7 +80,7 @@ jobs:
   deploy-gcp:
     name: Deploy to Google Cloud Run
     needs: [test-and-lint]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
     runs-on: ubuntu-latest
 
     permissions:

@@ -131,7 +131,9 @@ class StructuredLoggingMiddleware(BaseHTTPMiddleware):
 app.add_middleware(StructuredLoggingMiddleware)
 
 # Bezpieczna konfiguracja CORS pod frontend Next.js / PWA
-raw_cors = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000")
+raw_cors = os.getenv(
+    "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000"
+)
 allowed_origins = [origin.strip() for origin in raw_cors.split(",") if origin.strip()]
 
 app.add_middleware(

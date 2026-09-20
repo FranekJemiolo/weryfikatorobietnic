@@ -194,5 +194,3 @@ def test_search_promises_endpoint() -> None:
     assert empty_resp.status_code == 200
     assert empty_resp.json()["total"] == 0
     assert empty_resp.json()["items"] == []
-
-

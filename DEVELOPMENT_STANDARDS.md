@@ -26,6 +26,7 @@ Weryfikator Obietnic to projekt infrastruktury zaufania publicznego. Kod musi ce
           return None
       return round((fulfilled / total) * 100.0, 2)
 
+
   # BŁĘDNIE (Przestarzała składnia typing.Optional / brak typów):
   def calculate_delivery_rate(fulfilled, total): ...
   ```
@@ -50,6 +51,7 @@ Weryfikator Obietnic to projekt infrastruktury zaufania publicznego. Kod musi ce
   # Zdefiniowany typ zależności
   SessionDep = Annotated[Session, Depends(get_session)]
 
+
   @router.get("/promises/{id}")
   async def get_promise(id: str, session: SessionDep) -> PromiseResponse:
       # Sesja zarządzana jest automatycznie w ramach cyklu życia requestu
@@ -73,8 +75,7 @@ Każdy task w potokach ETL (`@task`) musi spełniać kryterium **pełnej idempot
        insert(Promise)
        .values(new_data)
        .on_conflict_do_update(
-           index_elements=[Promise.id],
-           set_={"title": new_data["title"], "updated_at": func.now()}
+           index_elements=[Promise.id], set_={"title": new_data["title"], "updated_at": func.now()}
        )
    )
    ```
