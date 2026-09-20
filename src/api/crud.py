@@ -1,11 +1,14 @@
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import timedelta
 from typing import Literal, cast
 
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, desc, select
 
 from src.api.schemas import (
+    AnalyticsSummary,
     ArticleExcerpt,
     DailyActivityItem,
     PromiseEvaluationDetail,
@@ -25,16 +28,11 @@ from src.database.models import (
 )
 
 
-def get_promises_with_evaluations(session: Session) -> list[PromiseListItem]:
-    """Pobiera obietnice zoptymalizowanym zapytaniem ze złączeniem ocen LLM (brak N+1)."""
-    statement = (
-        select(Promise)
-        .options(selectinload(Promise.evaluations))  # type: ignore[arg-type]
-        .order_by(desc(col(Promise.created_at)))
-    )
-    promises = session.exec(statement).all()
-
-    # Pre-fetch ustaw powiązanych z ewaluacjami, aby uniknąć zapytań w pętli
+def _map_promises_to_list_items(
+    session: Session,
+    promises: Sequence[Promise],
+) -> list[PromiseListItem]:
+    """Konwertuje sekwencję obiektów Promise na listę PromiseListItem bez problemu N+1."""
     bill_ids = {
         ev.bill_id
         for p in promises
@@ -48,7 +46,6 @@ def get_promises_with_evaluations(session: Session) -> list[PromiseListItem]:
 
     results: list[PromiseListItem] = []
     for p in promises:
-        # Najświeższa ewaluacja LLM dla danej obietnicy
         latest_eval = (
             sorted(p.evaluations, key=lambda e: e.created_at, reverse=True)[0]
             if p.evaluations
@@ -81,8 +78,136 @@ def get_promises_with_evaluations(session: Session) -> list[PromiseListItem]:
     return results
 
 
+def get_promises_with_evaluations(session: Session) -> list[PromiseListItem]:
+    """Pobiera obietnice zoptymalizowanym zapytaniem ze złączeniem ocen LLM (brak N+1)."""
+    statement = (
+        select(Promise)
+        .options(selectinload(Promise.evaluations))  # type: ignore[arg-type]
+        .order_by(desc(col(Promise.created_at)))
+    )
+    promises = session.exec(statement).all()
+    return _map_promises_to_list_items(session, promises)
+
+
 # Alias dla kompatybilności wstecznej
 get_promises_summary = get_promises_with_evaluations
+
+
+def get_analytics_summary(session: Session) -> AnalyticsSummary:
+    """Oblicza globalne statystyki rządu z wykorzystaniem optymalnych zapytań SQL (func.count, func.avg)."""
+    # 1. Zliczenia statusów obietnic jednym zapytaniem SQL z func.count() i func.sum(case(...))
+    stats_query = select(
+        func.count(col(Promise.id)).label("total_promises"),
+        func.coalesce(
+            func.sum(case((col(Promise.status) == PromiseStatus.FULFILLED, 1), else_=0)),
+            0,
+        ).label("fulfilled_count"),
+        func.coalesce(
+            func.sum(case((col(Promise.status) == PromiseStatus.IN_PROGRESS, 1), else_=0)),
+            0,
+        ).label("in_progress_count"),
+        func.coalesce(
+            func.sum(case((col(Promise.status) == PromiseStatus.BROKEN, 1), else_=0)),
+            0,
+        ).label("broken_count"),
+    )
+    total, fulfilled, in_progress, broken = session.exec(stats_query).one()
+
+    # 2. Obliczenie średniego czasu dowiezienia ustawy dla spełnionych obietnic za pomocą func.avg()
+    delivery_days: float | None = None
+    if fulfilled and fulfilled > 0:
+        dialect_name = session.bind.dialect.name if session.bind else "sqlite"
+        if dialect_name == "sqlite":
+            avg_query = select(
+                func.avg(
+                    func.julianday(func.coalesce(Promise.updated_at, func.datetime("now")))
+                    - func.julianday(Promise.created_at)
+                )
+            ).where(col(Promise.status) == PromiseStatus.FULFILLED)
+        else:
+            avg_query = select(
+                func.avg(
+                    func.extract(
+                        "epoch",
+                        func.coalesce(Promise.updated_at, func.now()) - Promise.created_at,
+                    )
+                    / 86400.0
+                )
+            ).where(col(Promise.status) == PromiseStatus.FULFILLED)
+
+        avg_result = session.exec(avg_query).first()
+        if avg_result is not None:
+            delivery_days = round(float(avg_result), 1)
+
+    return AnalyticsSummary(
+        total_promises=int(total or 0),
+        fulfilled_count=int(fulfilled or 0),
+        in_progress_count=int(in_progress or 0),
+        broken_count=int(broken or 0),
+        average_delivery_days=delivery_days,
+    )
+
+
+def search_promises(
+    session: Session,
+    q: str | None = None,
+    party: str | None = None,
+    status: str | None = None,
+    category: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> tuple[list[PromiseListItem], int]:
+    """Wyszukuje obietnice wyborcze według frazy tekstowej (ILIKE) oraz kryteriów partii, statusu i kategorii."""
+    conditions = []
+
+    if q and q.strip():
+        search_pattern = f"%{q.strip()}%"
+        conditions.append(
+            or_(
+                col(Promise.title).ilike(search_pattern),
+                col(Promise.full_text).ilike(search_pattern),
+            )
+        )
+
+    if party and party.strip() and party.strip() != "ALL":
+        conditions.append(col(Promise.party).ilike(party.strip()))
+
+    if category and category.strip() and category.strip() != "ALL":
+        conditions.append(col(Promise.category).ilike(category.strip()))
+
+    if status and status.strip() and status.strip() != "ALL":
+        stat_upper = status.strip().upper()
+        if stat_upper in [s.value for s in PromiseStatus]:
+            conditions.append(col(Promise.status) == PromiseStatus(stat_upper))
+        else:
+            # Wyszukiwanie po alignment_status ewaluacji LLM (np. W_PELNI, CZESCIOWO, SPRZECZNA)
+            conditions.append(
+                col(Promise.id).in_(
+                    select(LLMEvaluation.promise_id).where(
+                        col(LLMEvaluation.alignment_status) == stat_upper
+                    )
+                )
+            )
+
+    count_stmt = select(func.count(col(Promise.id)))
+    if conditions:
+        count_stmt = count_stmt.where(and_(*conditions))
+    total = session.exec(count_stmt).one()
+
+    data_stmt = (
+        select(Promise)
+        .options(selectinload(Promise.evaluations))  # type: ignore[arg-type]
+        .order_by(desc(col(Promise.created_at)))
+        .limit(limit)
+        .offset(offset)
+    )
+    if conditions:
+        data_stmt = data_stmt.where(and_(*conditions))
+    promises = session.exec(data_stmt).all()
+
+    items = _map_promises_to_list_items(session, promises)
+    return items, int(total)
+
 
 
 def get_mp_by_id(session: Session, mp_id: int) -> MP | None:

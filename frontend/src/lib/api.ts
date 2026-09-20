@@ -75,6 +75,30 @@ export interface PromiseStatusCardData {
   source_print_number?: string | null;
 }
 
+export interface AnalyticsSummary {
+  total_promises: number;
+  fulfilled_count: number;
+  in_progress_count: number;
+  broken_count: number;
+  average_delivery_days?: number | null;
+}
+
+export interface PromiseSearchResponse {
+  items: PromiseListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface PromiseSearchParams {
+  q?: string;
+  party?: string;
+  status?: string;
+  category?: string;
+  limit?: number;
+  offset?: number;
+}
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (typeof window !== "undefined" ? "" : "http://localhost:8000");
@@ -155,5 +179,30 @@ export const api = {
    */
   async getPromiseTimeline(promiseId: string): Promise<TimelineEvent[]> {
     return request<TimelineEvent[]>(`/api/v1/promises/${encodeURIComponent(promiseId)}/timeline`);
+  },
+
+  /**
+   * Pobiera globalne statystyki i podsumowanie wskaźników rządu (Government Score).
+   */
+  async getAnalyticsSummary(): Promise<AnalyticsSummary> {
+    return request<AnalyticsSummary>("/api/v1/analytics/summary");
+  },
+
+  /**
+   * Wyszukuje obietnice wyborcze z parametrami filtrowania i paginacji.
+   */
+  async searchPromises(params?: PromiseSearchParams): Promise<PromiseSearchResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.q) searchParams.set("q", params.q);
+    if (params?.party && params.party !== "ALL") searchParams.set("party", params.party);
+    if (params?.status && params.status !== "ALL") searchParams.set("status", params.status);
+    if (params?.category && params.category !== "ALL") searchParams.set("category", params.category);
+    if (params?.limit !== undefined) searchParams.set("limit", params.limit.toString());
+    if (params?.offset !== undefined) searchParams.set("offset", params.offset.toString());
+
+    const queryString = searchParams.toString();
+    return request<PromiseSearchResponse>(
+      `/api/v1/promises/search${queryString ? `?${queryString}` : ""}`
+    );
   },
 };

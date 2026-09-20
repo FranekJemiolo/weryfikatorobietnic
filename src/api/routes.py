@@ -3,21 +3,25 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from src.api.crud import (
+    get_analytics_summary,
     get_mp_by_id,
     get_mp_voting_activity,
     get_promise_evaluation_detail,
     get_promise_timeline,
     get_promises_summary,
+    search_promises,
 )
 from src.api.schemas import (
+    AnalyticsSummary,
     DailyActivityItem,
     MPProfileResponse,
     PromiseEvaluationDetail,
     PromiseListItem,
+    PromiseSearchResponse,
     TimelineEvent,
 )
 from src.database.engine import get_session
@@ -25,6 +29,52 @@ from src.database.engine import get_session
 router = APIRouter(prefix="/api/v1")
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+@router.get(
+    "/analytics/summary",
+    response_model=AnalyticsSummary,
+    tags=["Analityka"],
+    summary="Globalne statystyki rządu (Government Score)",
+)
+async def get_government_score_summary(
+    session: SessionDep,
+) -> AnalyticsSummary:
+    """Zwraca globalne statystyki obietnic rządu: total, fulfilled, in_progress, broken oraz średni czas realizacji."""
+    return get_analytics_summary(session)
+
+
+@router.get(
+    "/promises/search",
+    response_model=PromiseSearchResponse,
+    tags=["Obietnice"],
+    summary="Wyszukiwarka obietnic z filtrami i paginacją",
+)
+async def search_promises_endpoint(
+    session: SessionDep,
+    q: str | None = Query(default=None, description="Fraza wyszukiwania w tytule i treści"),
+    party: str | None = Query(default=None, description="Filtr po partii politycznej"),
+    status: str | None = Query(default=None, description="Filtr po statusie obietnicy lub zgodności"),
+    category: str | None = Query(default=None, description="Filtr po kategorii"),
+    limit: int = Query(default=20, ge=1, le=100, description="Limit wyników na stronę"),
+    offset: int = Query(default=0, ge=0, description="Przesunięcie paginacji"),
+) -> PromiseSearchResponse:
+    """Wyszukuje obietnice po frazie tekstowej (ILIKE) oraz kryteriach partii, statusu i kategorii."""
+    items, total = search_promises(
+        session=session,
+        q=q,
+        party=party,
+        status=status,
+        category=category,
+        limit=limit,
+        offset=offset,
+    )
+    return PromiseSearchResponse(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(

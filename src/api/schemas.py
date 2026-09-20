@@ -79,3 +79,23 @@ class TimelineEvent(BaseModel):
     stage_name: str
     description: str
     is_completed: bool
+
+
+class AnalyticsSummary(BaseModel):
+    """Globalne wskaźniki podsumowujące realizację obietnic rządu (Government Score)."""
+
+    total_promises: int
+    fulfilled_count: int
+    in_progress_count: int
+    broken_count: int
+    average_delivery_days: float | None = None
+
+
+class PromiseSearchResponse(BaseModel):
+    """Wynik zapytania wyszukiwarki obietnic z obsługą paginacji."""
+
+    items: list[PromiseListItem]
+    total: int
+    limit: int
+    offset: int
+

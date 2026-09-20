@@ -163,3 +163,34 @@ def test_get_promise_timeline_404() -> None:
     error_detail = response.json().get("detail", "")
     assert "Nie znaleziono" in error_detail
 
+
+def test_get_analytics_summary() -> None:
+    """Weryfikuje globalne statystyki rządu z zapytania SQL."""
+    response = client.get("/api/v1/analytics/summary")
+    assert response.status_code == 200
+    data = response.json()
+    assert "total_promises" in data
+    assert "fulfilled_count" in data
+    assert "in_progress_count" in data
+    assert "broken_count" in data
+    assert data["total_promises"] >= 1
+    assert data["in_progress_count"] >= 1
+
+
+def test_search_promises_endpoint() -> None:
+    """Weryfikuje działanie wyszukiwarki z parametrami q, party, limit."""
+    response = client.get("/api/v1/promises/search?q=Kwota&party=KO&limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert "total" in data
+    assert data["total"] >= 1
+    assert data["items"][0]["id"] == "KO-01"
+
+    # Test wyszukiwania z brakiem wyników
+    empty_resp = client.get("/api/v1/promises/search?q=ZupelnieNieistniejacaFraza999")
+    assert empty_resp.status_code == 200
+    assert empty_resp.json()["total"] == 0
+    assert empty_resp.json()["items"] == []
+
+

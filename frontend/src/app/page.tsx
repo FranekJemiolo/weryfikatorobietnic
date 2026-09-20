@@ -1,14 +1,14 @@
-import React from "react";
+import React, { Suspense } from "react";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Vote, FileCheck2, Sparkles, AlertCircle } from "lucide-react";
-import { PromiseCard } from "@/components/PromiseCard";
+import { Vote, FileCheck2, Sparkles } from "lucide-react";
+import { GovernmentScoreDashboard } from "@/components/GovernmentScoreDashboard";
+import { PromisesCatalog } from "@/components/PromisesCatalog";
 import type { PromiseListItem } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Weryfikator Obietnic: Stan na dziś | Audyt Obywatelski",
+  title: "Weryfikator Obietnic: Stan na dziś | Big Picture & Audyt Obywatelski",
   description:
-    "Bieżący stan realizacji obietnic wyborczych partii politycznych w X Kadencji Sejmu RP. Weryfikacja projektów ustaw z wykorzystaniem RAG i analiz OSR.",
+    "Bieżący stan realizacji obietnic wyborczych partii politycznych w X Kadencji Sejmu RP. Dashboard efektywności rządu (Government Score), wyszukiwarka z filtrami oraz analiza OSR.",
 };
 
 /**
@@ -35,14 +35,13 @@ async function getPromises(): Promise<PromiseListItem[]> {
 
 /**
  * Asynchroniczny React Server Component (RSC) dla strony głównej.
- * Zapewnia natychmiastowe renderowanie HTML, pełne wsparcie SEO oraz optymalny czas First Contentful Paint (FCP).
  */
 export default async function HomePage() {
   const promises = await getPromises();
 
   return (
     <div className="space-y-10 pb-16">
-      {/* Sekcja Hero / Nagłówek Główny */}
+      {/* Sekcja Hero / Wprowadzenie */}
       <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900/90 to-indigo-950/40 p-6 sm:p-10 shadow-2xl">
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-300">
@@ -76,47 +75,19 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Katalog Obietnic (CSS Grid: 1 kolumna na mobile, 3 na desktopie) */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-white tracking-tight sm:text-2xl">
-              Zarejestrowane Deklaracje Wyborcze
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400">
-              Łącznie zarejestrowanych obietnic w systemie: {promises.length}
-            </p>
-          </div>
-        </div>
-
-        {promises.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {promises.map((promise) => (
-              <Link
-                key={promise.id}
-                href={`/promises/${promise.id}`}
-                className="block transition-transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-xl"
-              >
-                <PromiseCard
-                  promiseId={promise.id}
-                  initialData={promise}
-                />
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-12 text-center">
-            <AlertCircle className="mx-auto h-8 w-8 text-slate-500 mb-3" />
-            <h3 className="text-base font-semibold text-slate-200">
-              Brak obietnic lub backend oczekuje na połączenie
-            </h3>
-            <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
-              Upewnij się, że usługa FastAPI działa na porcie 8000 lub uruchom środowisko lokalne
-              za pomocą polecenia <code>docker compose up</code>.
-            </p>
-          </div>
-        )}
+      {/* ZADANIE 2: Główny Panel Analityczny (Overall Government Score) */}
+      <section>
+        <GovernmentScoreDashboard />
       </section>
+
+      {/* ZADANIE 3: Wyszukiwarka i Filtry (FilterBar) wraz z Katalogiem Obietnic */}
+      <Suspense
+        fallback={
+          <div className="h-96 rounded-xl border border-slate-800 bg-slate-900/40 animate-pulse" />
+        }
+      >
+        <PromisesCatalog initialPromises={promises} />
+      </Suspense>
     </div>
   );
 }

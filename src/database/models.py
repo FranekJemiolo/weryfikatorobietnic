@@ -103,6 +103,10 @@ class Promise(SQLModel, table=True):
         default_factory=lambda: datetime.now(UTC),
         description="Znacznik czasu rejestracji obietnicy",
     )
+    updated_at: datetime | None = Field(
+        default=None,
+        description="Data aktualizacji statusu lub sfinalizowania obietnicy",
+    )
 
     evaluations: list["LLMEvaluation"] = Relationship(back_populates="promise")
     revisions: list["PromiseRevision"] = Relationship(back_populates="promise")
