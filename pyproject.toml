@@ -74,5 +74,6 @@ python_functions = ["test_*"]
 
 [dependency-groups]
 dev = [
+    "respx>=0.23.1",
     "types-pyyaml>=6.0.12.20260906",
 ]

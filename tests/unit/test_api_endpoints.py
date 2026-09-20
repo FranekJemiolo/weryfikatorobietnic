@@ -68,4 +68,3 @@ def test_get_mp_daily_activity() -> None:
         "MIXED",
         "NO_VOTES",
     ]
-
