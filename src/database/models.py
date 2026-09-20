@@ -141,6 +141,14 @@ class Bill(SQLModel, table=True):
     document_url: str | None = Field(
         default=None, description="Link do pliku PDF lub treści na sejm.gov.pl"
     )
+    estimated_budget_impact_pln: float | None = Field(
+        default=None,
+        description="Szacowany wpływ na finanse publiczne w PLN (wyciągnięty z OSR)",
+    )
+    osr_summary: str | None = Field(
+        default=None,
+        description="Syntetyczne podsumowanie Oceny Skutków Regulacji (OSR)",
+    )
 
     evaluations: list["LLMEvaluation"] = Relationship(back_populates="bill")
     articles: list["BillArticle"] = Relationship(back_populates="bill")
