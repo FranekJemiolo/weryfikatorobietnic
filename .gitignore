@@ -52,7 +52,8 @@ unittests.cfg
 
 # Docker & local storage
 postgres-data/
-data/
+data/raw/
+!data/initial_promises.yaml
 *.sqlite
 *.sqlite3
 

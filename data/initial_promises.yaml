@@ -1,0 +1,17 @@
+# Złota Baza Obietnic Wyborczych (Ground Truth)
+# Wstępne deklaracje programowe do weryfikacji legislacyjnej
+
+promises:
+  - id: "KO-100K-042"
+    party: "KO"
+    title: "Podniesienie kwoty wolnej od podatku do 60 000 zł"
+    full_text: "Podniesiemy kwotę wolną od podatku z 30 tys. zł do 60 tys. zł dla wszystkich podatników rozliczających się według skali podatkowej (PIT)."
+    category: "Podatki"
+    status: "IN_PROGRESS"
+
+  - id: "TD-GWAR-015"
+    party: "TD"
+    title: "Dobrowolny ZUS dla mikroprzedsiębiorców w trudnej sytuacji"
+    full_text: "Wprowadzimy dobrowolny ZUS dla mikroprzedsiębiorców znajdujących się w przejściowych kłopotach finansowych, na wzór rozwiązań w Niemczech."
+    category: "Gospodarka"
+    status: "IN_PROGRESS"

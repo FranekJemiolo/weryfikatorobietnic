@@ -21,6 +21,9 @@ dependencies = [
     "feedparser>=6.0.14",
     "pypdf>=6.19.0",
     "google-genai>=2.24.0",
+    "sqlmodel>=0.0.42",
+    "alembic>=1.20.0",
+    "psycopg2-binary>=2.9.13",
 ]
 
 [project.optional-dependencies]
@@ -58,6 +61,7 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+exclude = ["^alembic/versions/.*"]
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
@@ -65,6 +69,10 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["alembic.*"]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
