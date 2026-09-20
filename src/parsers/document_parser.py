@@ -152,3 +152,142 @@ class LegalDocumentParser:
             )
 
         return results
+
+    def is_committee_report(self, text: str, document_title: str | None = None) -> bool:
+        """Sprawdza, czy analizowany druk jest sprawozdaniem komisji sejmowej."""
+        title_norm = (document_title or "").lower()
+        if "sprawozdanie komisji" in title_norm or "dodatkowe sprawozdanie" in title_norm:
+            return True
+
+        header_sample = text[:2000].lower()
+        return (
+            "sprawozdanie komisji" in header_sample
+            or "dodatkowe sprawozdanie komisji" in header_sample
+            or ("komisja" in header_sample and "po rozpatrzeniu projektu" in header_sample)
+        )
+
+    def parse_committee_report_amendments(
+        self, text: str, document_title: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Wyodrębnia poprawki oraz wnioski mniejszości ze sprawozdania komisji sejmowej.
+
+        Wyszukuje bloki poprawek (np. 'Poprawka 1.', 'Wniosek mniejszości nr 2') oraz identyfikuje
+        zmieniane jednostki redakcyjne (artykuły) i rekomendację komisji (przyjęcie/odrzucenie).
+
+        Args:
+            text: Pełny tekst sprawozdania komisji sejmowej.
+            document_title: Opcjonalny tytuł druku z Sejm API.
+
+        Returns:
+            Lista słowników ze strukturą poprawki:
+            [
+                {
+                    'article_reference': 'Art. 4',
+                    'text_content': '...',
+                    'is_accepted': True,
+                    'is_minority_report': False
+                }
+            ]
+        """
+        if not text or not self.is_committee_report(text, document_title):
+            return []
+
+        # Wzorzec dzielący na kolejne poprawki lub wnioski mniejszości
+        amendment_pattern = re.compile(
+            r"(?:^|\n)\s*((?:Poprawka|Wniosek mniejszości)(?:\s+(?:nr\s*)?\d+)?[:.\-]?\s*)",
+            re.IGNORECASE,
+        )
+        splits = list(amendment_pattern.finditer(text))
+        if not splits:
+            # Próba wyłapania struktury punktowej, np. '1) w art. 5...', '2) skreśla się art. 8...'
+            alt_pattern = re.compile(
+                r"(?:^|\n)\s*(\d+\)\s+(?:w\s+art\.|dodaje\s+się\s+art\.|skreśla\s+się\s+art\.))",
+                re.IGNORECASE,
+            )
+            splits = list(alt_pattern.finditer(text))
+
+        if not splits:
+            return []
+
+        amendments: list[dict[str, Any]] = []
+        for i, match in enumerate(splits):
+            start_pos = match.start()
+            end_pos = splits[i + 1].start() if i + 1 < len(splits) else len(text)
+            chunk = text[start_pos:end_pos].strip()
+
+            # Wyodrębnienie powiązanego artykułu
+            art_match = re.search(
+                r"(?:w\s+|dodaje\s+się\s+|skreśla\s+się\s+)(art\.\s*\d+[a-z]?)",
+                chunk,
+                re.IGNORECASE,
+            )
+            art_ref = re.sub(r"\s+", " ", art_match.group(1)).capitalize() if art_match else None
+
+            # Wykrycie rekomendacji komisji (przyjęta vs wniosek o odrzucenie)
+            lower_chunk = chunk.lower()
+            is_minority = "wniosek mniejszości" in lower_chunk
+            is_accepted = True
+            if is_minority or "wnosi o odrzucenie" in lower_chunk or "odrzucić" in lower_chunk:
+                is_accepted = False
+
+            amendments.append(
+                {
+                    "article_reference": art_ref,
+                    "text_content": chunk[:1500].strip(),
+                    "is_accepted": is_accepted,
+                    "is_minority_report": is_minority,
+                }
+            )
+
+        return amendments
+
+
+def flag_evaluations_for_re_evaluation(
+    session: Any,
+    bill_id: str,
+    amendments: list[dict[str, Any]],
+) -> int:
+    """Oznacza powiązane ewaluacje LLM flagą requires_re_evaluation=True, jeśli wykryto kluczowe poprawki.
+
+    Zapisuje wyciągnięte poprawki do tabeli `bill_amendments` oraz wymusza ponowną ocenę RAG
+    w przypadku ingerencji w treść procedowanej ustawy (np. tzw. 'wrzutki legislacyjne').
+
+    Args:
+        session: Aktywna sesja bazy danych (SQLModel/SQLAlchemy).
+        bill_id: ID procedowanego projektu ustawy (np. 'druk-124').
+        amendments: Lista sparsowanych poprawek z raportu komisji.
+
+    Returns:
+        Liczba zaktualizowanych ewaluacji LLM.
+    """
+    if not amendments:
+        return 0
+
+    from sqlmodel import col, select
+
+    from src.database.models import BillAmendment, LLMEvaluation
+
+    # Zapis poprawek w bazie danych
+    for am in amendments:
+        db_amendment = BillAmendment(
+            bill_id=bill_id,
+            article_reference=am.get("article_reference"),
+            text_content=am.get("text_content", ""),
+            is_accepted=bool(am.get("is_accepted", False)),
+        )
+        session.add(db_amendment)
+
+    # Wyszukanie istniejących ocen dla tego projektu ustawy
+    eval_stmt = select(LLMEvaluation).where(
+        col(LLMEvaluation.bill_id) == bill_id,
+        col(LLMEvaluation.requires_re_evaluation) == False,  # noqa: E712
+    )
+    evaluations = session.exec(eval_stmt).all()
+    count = 0
+    for evaluation in evaluations:
+        evaluation.requires_re_evaluation = True
+        session.add(evaluation)
+        count += 1
+
+    session.commit()
+    return count

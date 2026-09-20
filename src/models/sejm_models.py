@@ -73,3 +73,28 @@ class VotingResultModel(BaseModel):
     votes: list[MPVoteDetail] = Field(default_factory=list, description="Lista imiennych głosów")
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+
+class InterpellationModel(BaseModel):
+    """Model interpelacji poselskiej pobranej z Sejm OpenAPI."""
+
+    term: int = Field(default=10, description="Kadencja Sejmu")
+    num: int = Field(..., description="Numer interpelacji")
+    title: str = Field(..., description="Tytuł interpelacji")
+    receipt_date: str | None = Field(default=None, alias="receiptDate", description="Data wpływu")
+    last_modified: str | None = Field(default=None, alias="lastModified")
+    from_mp: list[int] = Field(
+        default_factory=list, alias="from", description="Identyfikatory posłów wnoszących"
+    )
+    to: list[str] = Field(default_factory=list, description="Adresaci interpelacji")
+    sent_date: str | None = Field(default=None, alias="sentDate")
+    replies: list[dict[str, Any]] = Field(
+        default_factory=list, description="Odpowiedzi na interpelację"
+    )
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @property
+    def is_answered(self) -> bool:
+        """Określa, czy interpelacja doczekała się oficjalnej odpowiedzi."""
+        return len(self.replies) > 0

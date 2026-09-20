@@ -59,6 +59,7 @@ class DailyActivityItem(BaseModel):
     attendance_rate: float
     rebellion_rate: float | None = 0.0
     dominant_status: Literal["LOYAL", "REBELLIOUS", "ABSENT", "MIXED", "NO_VOTES"]
+    interpellations_count: int = 0
 
 
 class MPProfileResponse(BaseModel):
@@ -69,6 +70,7 @@ class MPProfileResponse(BaseModel):
     last_name: str
     club: str
     active: bool
+    interpellations_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

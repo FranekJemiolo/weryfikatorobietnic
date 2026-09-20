@@ -15,6 +15,7 @@ from tenacity import (
 )
 
 from src.models.sejm_models import (
+    InterpellationModel,
     MPModel,
     PrintDetailModel,
     ProcessModel,
@@ -178,3 +179,34 @@ class SejmApiClient:
         """
         data = await self._request("GET", f"/term{self.term}/votings/{sitting_num}/{voting_num}")
         return VotingResultModel.model_validate(data)
+
+    async def get_interpellations(
+        self,
+        offset: int = 0,
+        limit: int = 50,
+        from_mp: int | None = None,
+        since: str | None = None,
+        modified_since: str | None = None,
+    ) -> list[InterpellationModel]:
+        """Pobiera interpelacje poselskie obecnej kadencji Sejmu (np. /sejm/term10/interpellations).
+
+        Endpoint: GET /sejm/term{term}/interpellations
+        """
+        params: dict[str, Any] = {
+            "offset": offset,
+            "limit": limit,
+        }
+        if from_mp is not None:
+            params["from"] = from_mp
+        if since:
+            params["since"] = since
+        if modified_since:
+            params["modifiedSince"] = modified_since
+
+        data = await self._request("GET", f"/term{self.term}/interpellations", params=params)
+        if not isinstance(data, list):
+            raise SejmApiError(
+                "Nieprawidłowy format interpelacji poselskich - oczekiwano tablicy JSON."
+            )
+
+        return [InterpellationModel.model_validate(item) for item in data]

@@ -53,6 +53,7 @@ export interface DailyActivityItem {
   attendance_rate: number; // 0.0 - 1.0
   rebellion_rate?: number; // 0.0 - 1.0
   dominant_status: "LOYAL" | "REBELLIOUS" | "ABSENT" | "MIXED" | "NO_VOTES";
+  interpellations_count?: number;
 }
 
 export interface MPProfile {
@@ -61,6 +62,7 @@ export interface MPProfile {
   last_name: string;
   club: string;
   active: boolean;
+  interpellations_count?: number;
 }
 
 export interface PromiseStatusCardData {

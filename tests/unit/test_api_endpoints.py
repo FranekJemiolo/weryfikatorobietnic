@@ -148,14 +148,15 @@ def test_get_promise_timeline_success() -> None:
     data = response.json()
 
     assert isinstance(data, list)
-    assert len(data) == 5
+    assert len(data) == 6
     first_event = data[0]
     assert "date" in first_event
     assert "stage_name" in first_event
     assert "description" in first_event
     assert "is_completed" in first_event
     assert first_event["is_completed"] is True
-    assert "Deklaracja programowa" in first_event["stage_name"]
+    assert "Pre-legislacja" in first_event["stage_name"]
+    assert "Deklaracja programowa" in data[1]["stage_name"]
 
 
 def test_get_promise_timeline_404() -> None:

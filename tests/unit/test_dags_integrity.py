@@ -16,6 +16,7 @@ import pytest
         "dags.document_processing_dag",
         "dags.evaluation_dag",
         "dags.isap_sync_dag",
+        "dags.external_factcheck_dag",
     ],
 )
 def test_dag_import_and_integrity(dag_module_name: str) -> None:

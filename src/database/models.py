@@ -2,10 +2,12 @@
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column
-from sqlmodel import Field, Relationship, SQLModel
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlmodel import JSON, Field, Relationship, SQLModel
 
 
 class VoteType(StrEnum):
@@ -50,6 +52,8 @@ class MP(SQLModel, table=True):
 
     votes: list["MPVote"] = Relationship(back_populates="mp")
     club_affiliations: list["MPClubAffiliation"] = Relationship(back_populates="mp")
+    interpellations: list["Interpellation"] = Relationship(back_populates="mp")
+    amendments: list["BillAmendment"] = Relationship(back_populates="mp")
 
 
 class MPClubAffiliation(SQLModel, table=True):
@@ -68,6 +72,22 @@ class MPClubAffiliation(SQLModel, table=True):
     )
 
     mp: MP | None = Relationship(back_populates="club_affiliations")
+
+
+class Interpellation(SQLModel, table=True):
+    """Interpelacja poselska złożona w Sejmie RP (aktywność i proaktywność poselska)."""
+
+    __tablename__ = "interpellations"
+
+    id: int = Field(primary_key=True, description="Numer/identyfikator interpelacji z Sejm API")
+    mp_id: int = Field(foreign_key="mps.id", index=True, description="ID posła wnoszącego")
+    title: str = Field(description="Tytuł lub przedmiot interpelacji")
+    receipt_date: datetime = Field(index=True, description="Data złożenia/wpływu interpelacji")
+    is_answered: bool = Field(
+        default=False, index=True, description="Czy nadeszła odpowiedź na interpelację"
+    )
+
+    mp: MP | None = Relationship(back_populates="interpellations")
 
 
 class Voting(SQLModel, table=True):
@@ -125,6 +145,15 @@ class Promise(SQLModel, table=True):
     updated_at: datetime | None = Field(
         default=None,
         description="Data aktualizacji statusu lub sfinalizowania obietnicy",
+    )
+    external_factchecks: list[dict[str, Any]] = Field(
+        default_factory=list,
+        sa_column=Column(
+            JSON().with_variant(JSONB, "postgresql"),
+            nullable=False,
+            default=list,
+        ),
+        description="Zewnętrzne weryfikacje fact-checkingowe (Demagog, OKO.press, Konkret24)",
     )
 
     evaluations: list["LLMEvaluation"] = Relationship(back_populates="promise")
@@ -190,6 +219,8 @@ class Bill(SQLModel, table=True):
 
     evaluations: list["LLMEvaluation"] = Relationship(back_populates="bill")
     articles: list["BillArticle"] = Relationship(back_populates="bill")
+    amendments: list["BillAmendment"] = Relationship(back_populates="bill")
+    pre_legislative_processes: list["PreLegislativeProcess"] = Relationship(back_populates="bill")
 
 
 class BillArticle(SQLModel, table=True):
@@ -210,6 +241,89 @@ class BillArticle(SQLModel, table=True):
     )
 
     bill: Bill | None = Relationship(back_populates="articles")
+
+
+class Committee(SQLModel, table=True):
+    """Komisja sejmowa (np. Komisja Finansów Publicznych)."""
+
+    __tablename__ = "committees"
+
+    id: str = Field(primary_key=True, description="Kod komisji, np. FPB, ASW")
+    name: str = Field(description="Oficjalna nazwa komisji")
+
+    sittings: list["CommitteeSitting"] = Relationship(back_populates="committee")
+
+
+class CommitteeSitting(SQLModel, table=True):
+    """Posiedzenie komisji sejmowej."""
+
+    __tablename__ = "committee_sittings"
+
+    id: int | None = Field(default=None, primary_key=True)
+    committee_id: str = Field(foreign_key="committees.id", index=True, description="Kod komisji")
+    date: datetime = Field(index=True, description="Data i godzina posiedzenia komisji")
+
+    committee: Committee | None = Relationship(back_populates="sittings")
+
+
+class BillAmendment(SQLModel, table=True):
+    """Poprawka do projektu ustawy zgłoszona podczas prac w komisji lub czytań."""
+
+    __tablename__ = "bill_amendments"
+
+    id: int | None = Field(default=None, primary_key=True)
+    bill_id: str = Field(foreign_key="bills.id", index=True, description="ID projektu ustawy")
+    mp_id: int | None = Field(
+        default=None, foreign_key="mps.id", index=True, description="ID posła wnioskodawcy"
+    )
+    text_content: str = Field(description="Treść poprawki (proponowana zmiana w artykule)")
+    is_accepted: bool = Field(
+        default=False, index=True, description="Czy poprawka została przyjęta"
+    )
+    article_reference: str | None = Field(
+        default=None, index=True, description="Oznaczenie zmienianego artykułu (np. Art. 5)"
+    )
+
+    bill: Bill | None = Relationship(back_populates="amendments")
+    mp: MP | None = Relationship(back_populates="amendments")
+
+
+class PreLegislativeProcess(SQLModel, table=True):
+    """Proces pre-legislacyjny w Rządowym Centrum Legislacji (legislacja.gov.pl)."""
+
+    __tablename__ = "pre_legislative_processes"
+
+    id: str = Field(primary_key=True, description="Identyfikator projektu w RCL (np. UD124, UC45)")
+    rcl_id: str = Field(index=True, description="Numer z wykazu prac rządu / RCL")
+    title: str = Field(description="Tytuł projektu ustawy lub założeń")
+    stage: str = Field(
+        index=True,
+        description="Etap prac: Uzgodnienia, Konsultacje publiczne, Opiniowanie",
+    )
+    institution: str | None = Field(
+        default=None,
+        description="Organ odpowiedzialny lub wnioskodawca (np. Ministerstwo Finansów)",
+    )
+    created_date: datetime | None = Field(
+        default=None, index=True, description="Data rejestracji projektu w wykazie RCL"
+    )
+    updated_date: datetime | None = Field(
+        default=None, description="Data ostatniej aktualizacji na portalu legislacja.gov.pl"
+    )
+    consultation_end_date: datetime | None = Field(
+        default=None, description="Data zakończenia konsultacji publicznych"
+    )
+    bill_id: str | None = Field(
+        default=None,
+        foreign_key="bills.id",
+        index=True,
+        description="Identyfikator powiązanego druku sejmowego po wpłynięciu do Sejmu",
+    )
+    url: str | None = Field(
+        default=None, description="Link do strony projektu na legislacja.gov.pl"
+    )
+
+    bill: Bill | None = Relationship(back_populates="pre_legislative_processes")
 
 
 class LLMEvaluation(SQLModel, table=True):
@@ -234,6 +348,11 @@ class LLMEvaluation(SQLModel, table=True):
         default=False,
         index=True,
         description="Flaga zatwierdzenia oceny LLM przez człowieka (Human-in-the-Loop)",
+    )
+    requires_re_evaluation: bool = Field(
+        default=False,
+        index=True,
+        description="Flaga konieczności ponownej ewaluacji po zgłoszeniu poprawek w komisji",
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

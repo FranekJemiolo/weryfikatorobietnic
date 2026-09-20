@@ -19,8 +19,10 @@ from src.database.models import (
     MP,
     Bill,
     BillArticle,
+    Interpellation,
     LLMEvaluation,
     MPVote,
+    PreLegislativeProcess,
     Promise,
     PromiseStatus,
     VoteType,
@@ -273,7 +275,7 @@ def get_mp_voting_activity(
     session: Session,
     mp_id: int,
 ) -> list[DailyActivityItem] | None:
-    """Oblicza rzeczywistą dzienną frekwencję i status aktywności posła z tabel MP, Voting i MPVote."""
+    """Oblicza rzeczywistą dzienną frekwencję, status aktywności posła oraz liczbę złożonych interpelacji."""
     mp = session.get(MP, mp_id)
     if not mp:
         return None
@@ -287,7 +289,15 @@ def get_mp_voting_activity(
     )
     rows = session.exec(votes_statement).all()
 
-    if not rows:
+    # Pobranie wszystkich interpelacji złożonych przez tego posła
+    interp_statement = (
+        select(Interpellation)
+        .where(col(Interpellation.mp_id) == mp_id)
+        .order_by(col(Interpellation.receipt_date))
+    )
+    interp_rows = session.exec(interp_statement).all()
+
+    if not rows and not interp_rows:
         return []
 
     # Grupowanie oddanych głosów po dacie dziennej
@@ -296,8 +306,17 @@ def get_mp_voting_activity(
         day_str = voting.date.date().isoformat()
         day_groups[day_str].append(vote)
 
+    # Grupowanie interpelacji po dacie dziennej
+    interp_day_groups: dict[str, int] = defaultdict(int)
+    for interp in interp_rows:
+        day_str = interp.receipt_date.date().isoformat()
+        interp_day_groups[day_str] += 1
+
+    all_days = sorted(set(day_groups.keys()) | set(interp_day_groups.keys()))
     result_items: list[DailyActivityItem] = []
-    for day_str, day_votes in sorted(day_groups.items()):
+    for day_str in all_days:
+        day_votes = day_groups.get(day_str, [])
+        interp_count = interp_day_groups.get(day_str, 0)
         total = len(day_votes)
         present_count = sum(1 for v in day_votes if v.vote_type != VoteType.ABSENT)
         att_rate = round(present_count / total, 2) if total > 0 else 0.0
@@ -319,6 +338,7 @@ def get_mp_voting_activity(
                 attendance_rate=att_rate,
                 rebellion_rate=0.0,
                 dominant_status=dominant_status,
+                interpellations_count=interp_count,
             )
         )
 
@@ -331,8 +351,8 @@ def get_promise_timeline(
 ) -> list[TimelineEvent] | None:
     """Pobiera historię zmian statusu i etapy procesu legislacyjnego powiązanego z obietnicą.
 
-    Zwraca chronologiczną listę TimelineEvent od publikacji deklaracji,
-    przez rejestrację druku w Sejmie, czytania i komisje, aż po podpis Prezydenta.
+    Zwraca chronologiczną listę TimelineEvent od etapu pre-legislacyjnego w RCL,
+    przez publikację deklaracji, rejestrację druku w Sejmie, czytania i komisje, aż po podpis Prezydenta.
     Zwraca None, jeśli obietnica nie istnieje w bazie danych.
     """
     promise = session.get(Promise, promise_id)
@@ -351,9 +371,30 @@ def get_promise_timeline(
     if latest_eval and latest_eval.bill_id:
         bill = session.get(Bill, latest_eval.bill_id)
 
+    # Sprawdzenie powiązanego procesu pre-legislacyjnego w RCL
+    rcl_process: PreLegislativeProcess | None = None
+    if bill:
+        rcl_process = session.exec(
+            select(PreLegislativeProcess)
+            .where(col(PreLegislativeProcess.bill_id) == bill.id)
+            .limit(1)
+        ).first()
+
     base_date = promise.created_at.date()
     print_num = bill.sejm_print_num if bill else "UD-124"
     bill_status = (bill.status if bill else "").upper()
+
+    # Datowanie etapu RCL (przed wniesieniem projektu lub powiązane z OSR)
+    rcl_date = (
+        rcl_process.created_date.date()
+        if rcl_process and rcl_process.created_date
+        else base_date - timedelta(days=60)
+    )
+    rcl_stage = rcl_process.stage if rcl_process else "Konsultacje publiczne i opiniowanie"
+    rcl_id = rcl_process.rcl_id if rcl_process else "UD-124"
+    rcl_institution = (
+        f" ({rcl_process.institution})" if rcl_process and rcl_process.institution else ""
+    )
 
     # Logika statusu ukończenia poszczególnych etapów
     has_bill = bill is not None
@@ -370,6 +411,15 @@ def get_promise_timeline(
     )
 
     return [
+        TimelineEvent(
+            date=rcl_date.isoformat(),
+            stage_name=f"Pre-legislacja i uzgodnienia w RCL ({rcl_id})",
+            description=(
+                f"Etap rządowy: {rcl_stage}{rcl_institution}. Konsultacje publiczne, "
+                "uzgodnienia międzyresortowe oraz opracowanie Oceny Skutków Regulacji (OSR)."
+            ),
+            is_completed=True,
+        ),
         TimelineEvent(
             date=base_date.isoformat(),
             stage_name="Deklaracja programowa komitetu",
