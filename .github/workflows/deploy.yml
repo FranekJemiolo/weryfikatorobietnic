@@ -80,7 +80,7 @@ jobs:
   deploy-gcp:
     name: Deploy to Google Cloud Run
     needs: [test-and-lint]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
     permissions:
@@ -88,13 +88,25 @@ jobs:
       id-token: write # Wymagane dla OIDC / Workload Identity Federation
 
     steps:
+      - name: Check GCP Deployment Configuration
+        id: check-config
+        run: |
+          if [ -z "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ] || [ -z "${{ secrets.GCP_SERVICE_ACCOUNT }}" ]; then
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "::notice::GCP secrets (GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT) nie są skonfigurowane w tym repozytorium. Pomijanie wdrożenia do Cloud Run."
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout Code
+        if: steps.check-config.outputs.configured == 'true'
         uses: actions/checkout@v4
 
       # -------------------------------------------------------------
       # GCP AUTHENTICATION (Workload Identity Federation)
       # -------------------------------------------------------------
       - name: Authenticate to Google Cloud
+        if: steps.check-config.outputs.configured == 'true'
         id: auth
         uses: google-github-actions/auth@v2
         with:
@@ -103,11 +115,13 @@ jobs:
           token_format: access_token
 
       - name: Setup Google Cloud SDK
+        if: steps.check-config.outputs.configured == 'true'
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
 
       - name: Docker Auth to Artifact Registry
+        if: steps.check-config.outputs.configured == 'true'
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
@@ -115,6 +129,7 @@ jobs:
       # BUILD & PUSH DOCKER IMAGES
       # -------------------------------------------------------------
       - name: Build & Push Backend Docker Image
+        if: steps.check-config.outputs.configured == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -125,6 +140,7 @@ jobs:
             ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.BACKEND_SERVICE_NAME }}:latest
 
       - name: Build & Push Frontend Docker Image
+        if: steps.check-config.outputs.configured == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -138,6 +154,7 @@ jobs:
       # DEPLOY TO GOOGLE CLOUD RUN
       # -------------------------------------------------------------
       - name: Deploy Backend to Cloud Run
+        if: steps.check-config.outputs.configured == 'true'
         id: deploy-backend
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -155,6 +172,7 @@ jobs:
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
 
       - name: Deploy Frontend PWA to Cloud Run
+        if: steps.check-config.outputs.configured == 'true'
         id: deploy-frontend
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -171,7 +189,9 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ steps.deploy-backend.outputs.url }}
 
       - name: Summary of Deployment
+        if: steps.check-config.outputs.configured == 'true'
         run: |
           echo "### Wdrożenie zakończone sukcesem! 🚀" >> $GITHUB_STEP_SUMMARY
           echo "- **Backend API URL**: ${{ steps.deploy-backend.outputs.url }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Frontend PWA URL**: ${{ steps.deploy-frontend.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+
