@@ -1,53 +1,70 @@
 version: '3.8'
 
+networks:
+  weryfikator-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  airflow_logs:
+
 x-airflow-common: &airflow-common
   image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.9.2}
+  networks:
+    - weryfikator-net
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@postgres:5432/${POSTGRES_DB:-weryfikator}
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 10
     PYTHONPATH: /opt/airflow
-    # Application Configuration
-    DATABASE_URL: postgresql://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${APP_DB_NAME:-weryfikator_db}
+    DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@postgres:5432/${POSTGRES_DB:-weryfikator}
     SEJM_API_BASE_URL: https://api.sejm.gov.pl/sejm
     DEFAULT_SEJM_TERM: 10
     GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   volumes:
-    - ./dags:/opt/airflow/dags
-    - ./src:/opt/airflow/src
-    - ./logs:/opt/airflow/logs
-    - ./plugins:/opt/airflow/plugins
+    - ./dags:/opt/airflow/dags:rw
+    - ./src:/opt/airflow/src:rw
+    - ./logs:/opt/airflow/logs:rw
+    - ./plugins:/opt/airflow/plugins:rw
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     postgres:
       condition: service_healthy
 
 services:
+  # -------------------------------------------------------------
+  # BAZA DANYCH POSTGRESQL Z ROZSZERZENIEM PGVECTOR
+  # -------------------------------------------------------------
   postgres:
-    image: postgres:16-alpine
+    image: ankane/pgvector:v0.5.1
     container_name: weryfikator_postgres
+    networks:
+      - weryfikator-net
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-airflow}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
-      POSTGRES_DB: ${POSTGRES_DB:-airflow}
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-weryfikator}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./docker/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-airflow} -d ${POSTGRES_DB:-airflow}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-weryfikator}"]
+      interval: 5s
       timeout: 5s
       retries: 5
     restart: always
 
+  # -------------------------------------------------------------
+  # INICJALIZACJA AIRFLOW (MIGRACJE I KONTO ADMINA)
+  # -------------------------------------------------------------
   airflow-init:
     <<: *airflow-common
     container_name: weryfikator_airflow_init
@@ -67,6 +84,9 @@ services:
           --password ${_AIRFLOW_WWW_USER_PASSWORD:-admin} || true
     restart: "no"
 
+  # -------------------------------------------------------------
+  # AIRFLOW WEBSERVER & SCHEDULER
+  # -------------------------------------------------------------
   airflow-webserver:
     <<: *airflow-common
     container_name: weryfikator_airflow_webserver
@@ -97,5 +117,25 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-volumes:
-  postgres-data:
+  # -------------------------------------------------------------
+  # BACKEND FASTAPI (LOKALNE ŚRODOWISKO API)
+  # -------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weryfikator_api
+    networks:
+      - weryfikator-net
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@postgres:5432/${POSTGRES_DB:-weryfikator}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      PORT: 8000
+    volumes:
+      - ./src:/app/src:ro
+    ports:
+      - "8000:8000"
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy

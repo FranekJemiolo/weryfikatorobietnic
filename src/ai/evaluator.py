@@ -11,6 +11,7 @@ from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from src.ai.analyzer import AIAnalyzer
+from src.ai.prompts import EVALUATION_SYSTEM_PROMPT
 from src.database.engine import get_engine
 from src.database.models import AlignmentStatus, BillArticle, LLMEvaluation, Promise
 
@@ -50,10 +51,7 @@ class PromiseEvaluationSchema(BaseModel):
 class PromiseEvaluator:
     """Łączy wyszukiwanie wektorowe artykułów prawnych z wnioskowaniem LLM."""
 
-    SYSTEM_PROMPT = (
-        "Jesteś bezstronnym audytorem. Porównaj obietnicę z dostarczonymi wycinkami ustawy. "
-        "Zwróć tylko JSON zgodny ze schematem."
-    )
+    SYSTEM_PROMPT = EVALUATION_SYSTEM_PROMPT
 
     def __init__(
         self,
