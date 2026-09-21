@@ -51,14 +51,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: "pnpm"
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -68,7 +68,7 @@ jobs:
 
       - name: TypeScript typecheck
         working-directory: ./frontend
-        run: pnpm tsc --noEmit
+        run: pnpm run typecheck
 
       - name: Run ESLint
         working-directory: ./frontend
@@ -76,5 +76,8 @@ jobs:
 
       - name: Build Next.js
         working-directory: ./frontend
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          NEXT_PUBLIC_API_URL: http://localhost:8000
         run: pnpm run build
 

@@ -125,7 +125,7 @@ export function ArchitectureBento() {
           Cały stack w jednym spojrzeniu
         </h2>
         <p className="mt-3 text-slate-400 max-w-xl mx-auto text-sm sm:text-base">
-          Mikroserwisy, pipeline'y AI i interfejs obywatela — zaprojektowane z myślą
+          Mikroserwisy, pipeline&apos;y AI i interfejs obywatela — zaprojektowane z myślą
           o skalowalności i pełnej audytowalności.
         </p>
       </motion.div>
