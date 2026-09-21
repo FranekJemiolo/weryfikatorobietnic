@@ -16,24 +16,66 @@ interface PageProps {
   };
 }
 
+const SHOWCASE_MPS: Record<string, MPProfile> = {
+  "1": {
+    id: 1,
+    first_name: "Szymon",
+    last_name: "Hołownia",
+    club: "Polska 2050 - Trzecia Droga",
+    active: true,
+    interpellations_count: 12,
+  },
+  "2": {
+    id: 2,
+    first_name: "Donald",
+    last_name: "Tusk",
+    club: "Koalicja Obywatelska",
+    active: true,
+    interpellations_count: 8,
+  },
+  "3": {
+    id: 3,
+    first_name: "Włodzimierz",
+    last_name: "Czarzasty",
+    club: "Nowa Lewica",
+    active: true,
+    interpellations_count: 19,
+  },
+  "4": {
+    id: 4,
+    first_name: "Mateusz",
+    last_name: "Morawiecki",
+    club: "Prawo i Sprawiedliwość",
+    active: true,
+    interpellations_count: 34,
+  },
+  "5": {
+    id: 5,
+    first_name: "Krzysztof",
+    last_name: "Bosak",
+    club: "Konfederacja",
+    active: true,
+    interpellations_count: 27,
+  },
+};
+
 /**
  * Pobiera dane profilu posła bezpośrednio z API po stronie serwera.
+ * W przypadku eksportu statycznego lub braku backendu zwraca dane pokazowe.
  */
 async function getMP(id: string): Promise<MPProfile | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  try {
-    const res = await fetch(`${baseUrl}/api/v1/mps/${encodeURIComponent(id)}`, {
-      next: { revalidate: 120 }, // Odświeżanie danych profilu co 2 minuty
-    });
-    if (!res.ok) {
-      if (res.status === 404) return null;
-      throw new Error(`HTTP ${res.status}`);
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (baseUrl && process.env.NEXT_EXPORT !== "true") {
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/mps/${encodeURIComponent(id)}`, {
+        next: { revalidate: 120 }, // Odświeżanie danych profilu co 2 minuty
+      });
+      if (res.ok) return res.json();
+    } catch (error) {
+      console.error(`Błąd podczas pobierania danych posła ID ${id}:`, error);
     }
-    return res.json();
-  } catch (error) {
-    console.error(`Błąd podczas pobierania danych posła ID ${id}:`, error);
-    return null;
   }
+  return SHOWCASE_MPS[id] || null;
 }
 
 // Required for `next export` (GitHub Pages static build)
@@ -41,12 +83,10 @@ export const dynamic = "force-static";
 export const dynamicParams = false;
 
 /**
- * Dla `next export`: zwraca jeden placeholder — Next.js 14 wymaga
- * co najmniej jednego wpisu w prerenderRoutes. Rzeczywiste profile posłów
- * są obsługiwane client-side (dynamicParams = false ⇒ inne ID → 404).
+ * Dla `next export`: generuje strony dla czołowych posłów Sejmu RP X Kadencji.
  */
 export function generateStaticParams() {
-  return [{ id: "placeholder" }];
+  return Object.keys(SHOWCASE_MPS).map((id) => ({ id }));
 }
 
 /**

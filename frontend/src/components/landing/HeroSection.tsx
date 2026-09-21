@@ -104,16 +104,16 @@ export function HeroSection() {
           custom={3}
           className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <Link
-            href="/promises"
+          <a
+            href="#katalog"
             id="hero-cta-primary"
             className="group relative inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 transition-all duration-200 hover:shadow-indigo-600/50 hover:scale-[1.02] active:scale-[0.98]"
           >
             Sprawdź obietnice
             <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
-          </Link>
+          </a>
           <a
-            href="https://github.com/FranekJemiolo/traceplay"
+            href="https://github.com/FranekJemiolo/weryfikatorobietnic"
             target="_blank"
             rel="noopener noreferrer"
             id="hero-cta-github"

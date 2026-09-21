@@ -167,72 +167,173 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+import {
+  SHOWCASE_PROMISES,
+  SHOWCASE_PROMISE_DETAILS,
+  SHOWCASE_TIMELINES,
+  SHOWCASE_ANALYTICS,
+} from "./showcaseData";
+
 export const api = {
   /**
    * Pobiera listę wszystkich obietnic wyborczych wraz ze statusem LLM i kosztem OSR.
+   * W przypadku braku aktywnego backendu (np. GitHub Pages) zwraca Złotą Bazę Pokazową.
    */
   async getPromises(): Promise<PromiseListItem[]> {
-    return request<PromiseListItem[]>("/api/v1/promises");
+    try {
+      return await request<PromiseListItem[]>("/api/v1/promises");
+    } catch {
+      return SHOWCASE_PROMISES;
+    }
   },
 
   /**
    * Pobiera szczegółową ocenę konkretnej obietnicy wraz z wycinkami artykułów ustaw (Diff).
    */
   async getPromiseEvaluation(promiseId: string): Promise<PromiseEvaluationDetail> {
-    return request<PromiseEvaluationDetail>(`/api/v1/promises/${encodeURIComponent(promiseId)}/evaluation`);
+    try {
+      return await request<PromiseEvaluationDetail>(`/api/v1/promises/${encodeURIComponent(promiseId)}/evaluation`);
+    } catch {
+      if (SHOWCASE_PROMISE_DETAILS[promiseId]) {
+        return SHOWCASE_PROMISE_DETAILS[promiseId];
+      }
+      const p = SHOWCASE_PROMISES.find((x) => x.id === promiseId);
+      if (p) {
+        return {
+          promise_id: p.id,
+          title: p.title,
+          full_text: `Deklaracja wyborcza ${p.party} w kategorii ${p.category}: ${p.title}.`,
+          party: p.party,
+          category: p.category,
+          status: p.status,
+          alignment_status: p.latest_alignment_status,
+          confidence_score: p.confidence_score,
+          estimated_budget_impact_pln: p.estimated_budget_impact_pln,
+          justification: "Analiza AI na podstawie publicznych materiałów legislacyjnych Sejmu RP X Kadencji.",
+          relevant_articles: [],
+        };
+      }
+      throw new ApiError(404, "Nie znaleziono obietnicy");
+    }
   },
 
   /**
    * Pobiera dzienną frekwencję i wskaźnik zgodności głosowań posła dla Heatmapy.
    */
   async getMPVotingActivity(mpId: number | string): Promise<DailyActivityItem[]> {
-    return request<DailyActivityItem[]>(`/api/v1/mps/${mpId}/voting-activity`);
+    try {
+      return await request<DailyActivityItem[]>(`/api/v1/mps/${mpId}/voting-activity`);
+    } catch {
+      return [];
+    }
   },
 
   /**
    * Pobiera podstawowe informacje profilowe posła.
    */
   async getMPProfile(mpId: number | string): Promise<MPProfile> {
-    return request<MPProfile>(`/api/v1/mps/${mpId}`);
+    try {
+      return await request<MPProfile>(`/api/v1/mps/${mpId}`);
+    } catch {
+      return {
+        id: Number(mpId) || 1,
+        first_name: "Poseł",
+        last_name: `Sejmu RP (#${mpId})`,
+        club: "Koalicja Obywatelska",
+        active: true,
+        interpellations_count: 14,
+      };
+    }
   },
 
   /**
    * Pobiera skrócony status karty obietnicy z postępem prac legislacyjnych.
    */
   async getPromiseStatus(promiseId: string): Promise<PromiseStatusCardData> {
-    return request<PromiseStatusCardData>(`/api/v1/promises/${encodeURIComponent(promiseId)}/status`);
+    try {
+      return await request<PromiseStatusCardData>(`/api/v1/promises/${encodeURIComponent(promiseId)}/status`);
+    } catch {
+      const p = SHOWCASE_PROMISES.find((x) => x.id === promiseId);
+      return {
+        promise_id: promiseId,
+        promise_title: p?.title || "Obietnica",
+        llm_alignment_status: p?.latest_alignment_status || "CZESCIOWO",
+        llm_justification: "Analiza w toku na podstawie druków sejmowych.",
+        time_elapsed_days: 140,
+        current_stage: "Prace w komisjach sejmowych",
+        stage_progress_percent: 65,
+      };
+    }
   },
 
   /**
    * Pobiera sekwencję etapów procesu legislacyjnego obietnicy (Time-to-Delivery).
    */
   async getPromiseTimeline(promiseId: string): Promise<TimelineEvent[]> {
-    return request<TimelineEvent[]>(`/api/v1/promises/${encodeURIComponent(promiseId)}/timeline`);
+    try {
+      return await request<TimelineEvent[]>(`/api/v1/promises/${encodeURIComponent(promiseId)}/timeline`);
+    } catch {
+      return SHOWCASE_TIMELINES[promiseId] || [];
+    }
   },
 
   /**
    * Pobiera globalne statystyki i podsumowanie wskaźników rządu (Government Score).
    */
   async getAnalyticsSummary(): Promise<AnalyticsSummary> {
-    return request<AnalyticsSummary>("/api/v1/analytics/summary");
+    try {
+      return await request<AnalyticsSummary>("/api/v1/analytics/summary");
+    } catch {
+      return SHOWCASE_ANALYTICS;
+    }
   },
 
   /**
    * Wyszukuje obietnice wyborcze z parametrami filtrowania i paginacji.
    */
   async searchPromises(params?: PromiseSearchParams): Promise<PromiseSearchResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.q) searchParams.set("q", params.q);
-    if (params?.party && params.party !== "ALL") searchParams.set("party", params.party);
-    if (params?.status && params.status !== "ALL") searchParams.set("status", params.status);
-    if (params?.category && params.category !== "ALL") searchParams.set("category", params.category);
-    if (params?.limit !== undefined) searchParams.set("limit", params.limit.toString());
-    if (params?.offset !== undefined) searchParams.set("offset", params.offset.toString());
+    try {
+      const searchParams = new URLSearchParams();
+      if (params?.q) searchParams.set("q", params.q);
+      if (params?.party && params.party !== "ALL") searchParams.set("party", params.party);
+      if (params?.status && params.status !== "ALL") searchParams.set("status", params.status);
+      if (params?.category && params.category !== "ALL") searchParams.set("category", params.category);
+      if (params?.limit !== undefined) searchParams.set("limit", params.limit.toString());
+      if (params?.offset !== undefined) searchParams.set("offset", params.offset.toString());
 
-    const queryString = searchParams.toString();
-    return request<PromiseSearchResponse>(
-      `/api/v1/promises/search${queryString ? `?${queryString}` : ""}`
-    );
+      const queryString = searchParams.toString();
+      return await request<PromiseSearchResponse>(
+        `/api/v1/promises/search${queryString ? `?${queryString}` : ""}`
+      );
+    } catch {
+      let filtered = [...SHOWCASE_PROMISES];
+      if (params?.q) {
+        const query = params.q.toLowerCase();
+        filtered = filtered.filter(
+          (p) =>
+            p.title.toLowerCase().includes(query) ||
+            p.category.toLowerCase().includes(query) ||
+            p.party.toLowerCase().includes(query)
+        );
+      }
+      if (params?.party && params.party !== "ALL") {
+        filtered = filtered.filter((p) => p.party === params.party);
+      }
+      if (params?.status && params.status !== "ALL") {
+        filtered = filtered.filter(
+          (p) => p.status === params.status || p.latest_alignment_status === params.status
+        );
+      }
+      if (params?.category && params.category !== "ALL") {
+        filtered = filtered.filter((p) => p.category === params.category);
+      }
+      return {
+        items: filtered,
+        total: filtered.length,
+        limit: params?.limit || 50,
+        offset: params?.offset || 0,
+      };
+    }
   },
 
   /**

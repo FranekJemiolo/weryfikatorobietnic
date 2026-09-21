@@ -87,26 +87,57 @@ const ALIGNMENT_CONFIG: Record<
   },
 };
 
+import {
+  SHOWCASE_PROMISES,
+  SHOWCASE_PROMISE_DETAILS,
+  SHOWCASE_TIMELINES,
+} from "@/lib/showcaseData";
+
 /**
  * Pobiera szczegółową ocenę obietnicy bezpośrednio z backendu FastAPI po stronie serwera (RSC).
+ * W przypadku eksportu statycznego lub braku połączenia z API zwraca dane z bazy pokazowej.
  */
 async function getPromiseDetail(id: string): Promise<PromiseEvaluationDetail | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  try {
-    const res = await fetch(`${baseUrl}/api/v1/promises/${encodeURIComponent(id)}/evaluation`, {
-      next: { revalidate: 60 }, // ISR: odświeżanie danych co 60 sekund
-    });
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (baseUrl && process.env.NEXT_EXPORT !== "true") {
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/promises/${encodeURIComponent(id)}/evaluation`, {
+        next: { revalidate: 60 }, // ISR: odświeżanie danych co 60 sekund
+      });
 
-    if (!res.ok) {
-      if (res.status === 404) return null;
-      throw new Error(`HTTP ${res.status}`);
+      if (res.ok) {
+        return res.json();
+      }
+    } catch (error) {
+      console.error(`Błąd pobierania obietnicy ID ${id} z API:`, error);
     }
-
-    return res.json();
-  } catch (error) {
-    console.error(`Błąd pobierania obietnicy ID ${id}:`, error);
-    return null;
   }
+
+  if (SHOWCASE_PROMISE_DETAILS[id]) {
+    return SHOWCASE_PROMISE_DETAILS[id];
+  }
+
+  const p = SHOWCASE_PROMISES.find((x) => x.id === id);
+  if (p) {
+    return {
+      promise_id: p.id,
+      title: p.title,
+      full_text: `Deklaracja wyborcza partii ${p.party} w kategorii ${p.category}: "${p.title}".`,
+      party: p.party,
+      category: p.category,
+      status: p.status,
+      alignment_status: p.latest_alignment_status,
+      confidence_score: p.confidence_score,
+      bill_title: `Projekt ustawy regulujący obszar: ${p.category}`,
+      bill_print_num: "X/2024",
+      estimated_budget_impact_pln: p.estimated_budget_impact_pln,
+      divergence_details: "Wstępna analiza zgodności z deklaracją wyborczą; Trwają konsultacje międzyresortowe.",
+      justification: `Model AI przeprowadził analizę deklaracji programowej komitetu ${p.party} i porównał ją z aktualnym stanem procesu prawodawczego w Sejmie RP X Kadencji.`,
+      relevant_articles: [],
+    };
+  }
+
+  return null;
 }
 
 // Required for `next export` (GitHub Pages static build)
@@ -114,12 +145,11 @@ export const dynamic = "force-static";
 export const dynamicParams = false;
 
 /**
- * Dla `next export`: zwraca jeden placeholder — Next.js 14 wymaga
- * co najmniej jednego wpisu w prerenderRoutes. Rzeczywiste obietnice
- * są obsługiwane client-side (dynamicParams = false ⇒ inne ID → 404).
+ * Dla `next export`: generuje statyczne strony HTML dla wszystkich
+ * 12 zdefiniowanych obietnic wyborczych Sejmu RP X Kadencji.
  */
 export function generateStaticParams() {
-  return [{ id: "placeholder" }];
+  return SHOWCASE_PROMISES.map((p) => ({ id: p.id }));
 }
 
 /**
@@ -388,7 +418,10 @@ export default async function PromiseDetailPage({ params }: PageProps) {
 
         {/* Wertykalna oś czasu ładowana przez React Query z Suspense */}
         <Suspense fallback={<LegislativeTimelineSkeleton />}>
-          <LegislativeTimeline promiseId={detail.promise_id} />
+          <LegislativeTimeline
+            promiseId={detail.promise_id}
+            initialData={SHOWCASE_TIMELINES[detail.promise_id] || []}
+          />
         </Suspense>
       </section>
     </div>

@@ -12,19 +12,33 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 /** @type {import('next').NextConfig} */
+
+// GitHub Pages serwuje pod /weryfikatorobietnic/ — bez basePath/assetPrefix
+// Next.js generuje linki od / i CSS/JS są niedostępne (404).
+const isExport = process.env.NEXT_OUTPUT === "export";
+const REPO_NAME = "weryfikatorobietnic";
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+
   // Standalone output: Docker/GCP Cloud Run
   // Export output:     GitHub Pages (static HTML)
   // Undefined:         regular Next.js server (local dev, Vercel)
   output:
     process.env.NEXT_OUTPUT === "standalone"
       ? "standalone"
-      : process.env.NEXT_OUTPUT === "export"
+      : isExport
         ? "export"
         : undefined,
+
+  // Krytyczne dla GitHub Pages: ustawia prefix /_next/ → /weryfikatorobietnic/_next/
+  basePath: isExport ? `/${REPO_NAME}` : "",
+  assetPrefix: isExport ? `/${REPO_NAME}/` : "",
+
   images: {
+    // next/image nie działa w output:export — wymagany unoptimized:true
+    unoptimized: isExport,
     remotePatterns: [
       {
         protocol: "https",
@@ -32,7 +46,10 @@ const nextConfig = {
       },
     ],
   },
+
   async rewrites() {
+    // rewrites nie działają w export mode (ignorowane przez Next.js)
+    if (isExport) return [];
     return [
       {
         source: "/api/backend/:path*",
@@ -40,10 +57,12 @@ const nextConfig = {
       },
     ];
   },
+
   async headers() {
+    // headers nie działają w export mode (ignorowane przez Next.js)
+    if (isExport) return [];
     return [
       {
-        // Apply to all routes
         source: "/(.*)",
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
@@ -56,7 +75,6 @@ const nextConfig = {
         ],
       },
       {
-        // Cache static assets aggressively
         source: "/_next/static/(.*)",
         headers: [
           {

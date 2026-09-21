@@ -47,11 +47,30 @@ export function PromisesCatalog({ initialPromises = [] }: PromisesCatalogProps) 
     staleTime: 30 * 1000,
   });
 
+  const clientFiltered = React.useMemo(() => {
+    return initialPromises.filter((p) => {
+      if (q.trim()) {
+        const query = q.toLowerCase();
+        const matchTitle = p.title.toLowerCase().includes(query);
+        const matchCat = p.category.toLowerCase().includes(query);
+        const matchParty = p.party.toLowerCase().includes(query);
+        if (!matchTitle && !matchCat && !matchParty) return false;
+      }
+      if (party !== "ALL" && p.party !== party) return false;
+      if (status !== "ALL") {
+        const match = p.status === status || p.latest_alignment_status === status;
+        if (!match) return false;
+      }
+      if (category !== "ALL" && p.category !== category) return false;
+      return true;
+    });
+  }, [initialPromises, q, party, status, category]);
+
   const displayPromises: PromiseListItem[] = isFiltering
-    ? data?.items || []
+    ? (data?.items && data.items.length > 0 ? data.items : clientFiltered)
     : initialPromises;
 
-  const totalCount = isFiltering ? data?.total ?? displayPromises.length : initialPromises.length;
+  const totalCount = isFiltering ? (data?.total ?? displayPromises.length) : initialPromises.length;
 
   return (
     <section className="space-y-6">
