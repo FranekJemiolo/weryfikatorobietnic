@@ -43,7 +43,7 @@ export function HeroSection() {
       <div className="relative z-10 mx-auto max-w-5xl text-center">
         {/* Badge row */}
         <motion.div
-          initial="hidden"
+          initial={false}
           animate="visible"
           variants={fadeUp}
           custom={0}
@@ -62,7 +62,7 @@ export function HeroSection() {
 
         {/* Headline */}
         <motion.h1
-          initial="hidden"
+          initial={false}
           animate="visible"
           variants={fadeUp}
           custom={1}
@@ -76,7 +76,7 @@ export function HeroSection() {
             <motion.span
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
-              transition={{ delay: 0.8, duration: 0.5, ease: "easeOut" }}
+              transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
               className="absolute -bottom-1 left-0 right-0 h-px origin-left bg-gradient-to-r from-indigo-400 via-sky-400 to-emerald-400"
             />
           </span>
@@ -84,7 +84,7 @@ export function HeroSection() {
 
         {/* Sub-headline */}
         <motion.p
-          initial="hidden"
+          initial={false}
           animate="visible"
           variants={fadeUp}
           custom={2}
@@ -98,7 +98,7 @@ export function HeroSection() {
 
         {/* CTA buttons */}
         <motion.div
-          initial="hidden"
+          initial={false}
           animate="visible"
           variants={fadeUp}
           custom={3}
@@ -132,7 +132,7 @@ export function HeroSection() {
 
         {/* Stats */}
         <motion.div
-          initial="hidden"
+          initial={false}
           animate="visible"
           variants={fadeUp}
           custom={4}

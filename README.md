@@ -12,6 +12,10 @@
 
 🌐 **[Demo Landing Page → https://FranekJemiolo.github.io/weryfikatorobietnic](https://FranekJemiolo.github.io/weryfikatorobietnic)**
 
+<p align="center">
+  <img src="docs/screenshot.png" alt="Weryfikator Obietnic - Interfejs Obywatelskiego Audytu" width="100%">
+</p>
+
 ---
 
 ## 1. 🎯 Wizja i Misja Projektu

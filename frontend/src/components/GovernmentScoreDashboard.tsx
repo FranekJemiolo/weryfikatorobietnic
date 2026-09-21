@@ -91,6 +91,11 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
  * z wykresem pierścieniowym (Donut Chart) i kaflami analitycznymi.
  */
 export function GovernmentScoreDashboard({ initialData }: GovernmentScoreDashboardProps) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data, isLoading } = useQuery({
     queryKey: ["analytics-summary"],
     queryFn: () => api.getAnalyticsSummary(),
@@ -177,38 +182,44 @@ export function GovernmentScoreDashboard({ initialData }: GovernmentScoreDashboa
       {/* Siatka: Lewa kolumna (Wykres Donut) + Prawa kolumna (Kafle numeryczne) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         {/* Kolumna Wykresu Donut (Recharts) */}
-        <div className="lg:col-span-5 flex flex-col items-center justify-center relative">
-          <div className="w-full h-64 sm:h-72 relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={65}
-                  outerRadius={95}
-                  paddingAngle={4}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  verticalAlign="bottom"
-                  height={36}
-                  iconType="circle"
-                  iconSize={8}
-                  formatter={(value) => (
-                    <span className="text-xs text-slate-300 font-medium mr-2">
-                      {value}
-                    </span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+        <div className="lg:col-span-5 flex flex-col items-center justify-center relative min-w-0">
+          <div className="w-full h-64 sm:h-72 relative min-w-0 min-h-[260px]">
+            {mounted ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={250} debounce={50}>
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={95}
+                    paddingAngle={4}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    iconType="circle"
+                    iconSize={8}
+                    formatter={(value) => (
+                      <span className="text-xs text-slate-300 font-medium mr-2">
+                        {value}
+                      </span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full w-full flex items-center justify-center">
+                <div className="h-48 w-48 rounded-full border-4 border-slate-800 border-t-emerald-500 animate-pulse opacity-40" />
+              </div>
+            )}
 
             {/* Liczba na środku Donuta */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-8">

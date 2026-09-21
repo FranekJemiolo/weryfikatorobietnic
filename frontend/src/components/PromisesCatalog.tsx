@@ -3,27 +3,29 @@
 import React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, SearchX, Loader2 } from "lucide-react";
+import { SearchX } from "lucide-react";
 import { PromiseCard } from "@/components/PromiseCard";
 import { FilterBar } from "@/components/FilterBar";
-import { api, type PromiseListItem } from "@/lib/api";
+import type { PromiseListItem } from "@/lib/api";
 
 export interface PromisesCatalogProps {
   initialPromises?: PromiseListItem[];
 }
 
 /**
- * Interaktywny katalog obietnic wyborczych zintegrowany z paskiem wyszukiwania FilterBar
- * oraz dynamicznym odpytywaniem endpointu /api/v1/promises/search via React Query.
+ * Interaktywny katalog obietnic wyborczych zintegrowany z paskiem wyszukiwania FilterBar.
  */
 export function PromisesCatalog({ initialPromises = [] }: PromisesCatalogProps) {
   const searchParams = useSearchParams();
 
-  const q = searchParams?.get("q") || "";
-  const party = searchParams?.get("party") || "ALL";
-  const status = searchParams?.get("status") || "ALL";
-  const category = searchParams?.get("category") || "ALL";
+  const [filters, setFilters] = React.useState(() => ({
+    q: searchParams?.get("q") || "",
+    party: searchParams?.get("party") || "ALL",
+    status: searchParams?.get("status") || "ALL",
+    category: searchParams?.get("category") || "ALL",
+  }));
+
+  const { q, party, status, category } = filters;
 
   const isFiltering = Boolean(
     q.trim() ||
@@ -31,21 +33,6 @@ export function PromisesCatalog({ initialPromises = [] }: PromisesCatalogProps) 
       (status && status !== "ALL") ||
       (category && category !== "ALL")
   );
-
-  // Pobieranie przefiltrowanej listy z wyszukiwarki API
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["promises-search", q, party, status, category],
-    queryFn: () =>
-      api.searchPromises({
-        q: q.trim() || undefined,
-        party: party !== "ALL" ? party : undefined,
-        status: status !== "ALL" ? status : undefined,
-        category: category !== "ALL" ? category : undefined,
-        limit: 50,
-      }),
-    enabled: isFiltering,
-    staleTime: 30 * 1000,
-  });
 
   const clientFiltered = React.useMemo(() => {
     return initialPromises.filter((p) => {
@@ -67,15 +54,15 @@ export function PromisesCatalog({ initialPromises = [] }: PromisesCatalogProps) 
   }, [initialPromises, q, party, status, category]);
 
   const displayPromises: PromiseListItem[] = isFiltering
-    ? (data?.items && data.items.length > 0 ? data.items : clientFiltered)
+    ? clientFiltered
     : initialPromises;
 
-  const totalCount = isFiltering ? (data?.total ?? displayPromises.length) : initialPromises.length;
+  const totalCount = displayPromises.length;
 
   return (
     <section className="space-y-6">
       {/* Pasek wyszukiwania i filtrów ze stanem URL */}
-      <FilterBar />
+      <FilterBar onFiltersChange={setFilters} />
 
       {/* Nagłówek wyników ze wskaźnikiem liczby znalezionych pozycji */}
       <div className="flex items-center justify-between px-1">
@@ -89,30 +76,10 @@ export function PromisesCatalog({ initialPromises = [] }: PromisesCatalogProps) 
               : `Łącznie zarejestrowanych obietnic w systemie: ${totalCount}`}
           </p>
         </div>
-
-        {isFetching && (
-          <div className="flex items-center gap-1.5 text-xs text-indigo-400 animate-pulse">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span>Aktualizowanie...</span>
-          </div>
-        )}
       </div>
 
       {/* Siatka kart obietnic */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div
-              key={i}
-              className="h-64 rounded-xl border border-slate-800 bg-slate-900/50 animate-pulse p-6 space-y-4"
-            >
-              <div className="h-4 w-24 bg-slate-800 rounded" />
-              <div className="h-6 w-3/4 bg-slate-800 rounded" />
-              <div className="h-16 w-full bg-slate-800/60 rounded" />
-            </div>
-          ))}
-        </div>
-      ) : displayPromises.length > 0 ? (
+      {displayPromises.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {displayPromises.map((promise) => (
             <Link

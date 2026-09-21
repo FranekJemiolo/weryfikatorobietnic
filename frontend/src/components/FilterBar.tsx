@@ -102,11 +102,14 @@ export function FilterBar({ onFiltersChange, className = "" }: FilterBarProps) {
     if (selectedCategory && selectedCategory !== "ALL") params.set("category", selectedCategory);
 
     const newQueryString = params.toString();
-    const targetUrl = newQueryString ? `${pathname}?${newQueryString}` : pathname;
+    const currentQueryString = searchParams?.toString() || "";
 
-    startTransition(() => {
-      router.replace(targetUrl, { scroll: false });
-    });
+    if (newQueryString !== currentQueryString) {
+      const targetUrl = newQueryString ? `${pathname}?${newQueryString}` : pathname;
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", targetUrl);
+      }
+    }
 
     onFiltersChange?.({
       q: debouncedSearch.trim(),
@@ -114,7 +117,7 @@ export function FilterBar({ onFiltersChange, className = "" }: FilterBarProps) {
       status: selectedStatus,
       category: selectedCategory,
     });
-  }, [debouncedSearch, selectedParty, selectedStatus, selectedCategory, pathname, router, onFiltersChange]);
+  }, [debouncedSearch, selectedParty, selectedStatus, selectedCategory, pathname, searchParams, onFiltersChange]);
 
   const hasActiveFilters = Boolean(
     searchTerm.trim() ||

@@ -102,11 +102,11 @@ export function PromiseCard({
 }: PromiseCardProps) {
   const activeId = promiseId || initialData?.id || "";
 
-  // Pobranie szczegółów ewaluacji obietnicy przez RAG / LLM
+  // Pobranie szczegółów ewaluacji obietnicy przez RAG / LLM tylko jeśli brak initialData
   const { data: evalDetail, isLoading } = useQuery({
     queryKey: ["promise-evaluation", activeId],
     queryFn: () => api.getPromiseEvaluation(activeId),
-    enabled: Boolean(activeId),
+    enabled: Boolean(activeId) && !initialData,
   });
 
   if (isLoading && !initialData) {
