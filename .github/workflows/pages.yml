@@ -11,7 +11,7 @@ permissions:
   pages: write
   id-token: write
 
-# Tylko jeden deploy naraz
+# Tylko jeden deploy naraz — anuluj poprzedni jeśli jest w toku
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -41,21 +41,25 @@ jobs:
         working-directory: ./frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Build static export
+      - name: Build static export (next export)
         working-directory: ./frontend
         env:
-          NEXT_TELEMETRY_DISABLED: 1
+          NEXT_TELEMETRY_DISABLED: "1"
           NEXT_EXPORT: "true"
           NEXT_OUTPUT: "export"
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://weryfikator-api-placeholder.run.app' }}
+          # Ustaw NEXT_PUBLIC_API_URL w Secrets repozytorium lub zostaw pusty (klient pobierze z relative /api)
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_SITE_URL: "https://FranekJemiolo.github.io/weryfikatorobietnic"
         run: pnpm run build
 
-      - name: Disable Jekyll processing
+      - name: Add .nojekyll (disable Jekyll processing by GitHub Pages)
         run: touch ./frontend/out/.nojekyll
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          # Automatycznie włącz Pages jeśli jeszcze nie jest aktywne
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
