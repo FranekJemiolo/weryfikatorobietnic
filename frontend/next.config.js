@@ -15,8 +15,15 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // Standalone output makes Docker image smaller and CI artifacts clean
-  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
+  // Standalone output: Docker/GCP Cloud Run
+  // Export output:     GitHub Pages (static HTML)
+  // Undefined:         regular Next.js server (local dev, Vercel)
+  output:
+    process.env.NEXT_OUTPUT === "standalone"
+      ? "standalone"
+      : process.env.NEXT_OUTPUT === "export"
+        ? "export"
+        : undefined,
   images: {
     remotePatterns: [
       {

@@ -32,8 +32,13 @@ export const metadata: Metadata = {
 
 /**
  * Pobiera listę obietnic bezpośrednio z backendu FastAPI po stronie serwera (SSR / ISR).
+ * Podczas statycznego eksportu (GitHub Pages) zwraca pustą tablicę — dane
+ * są pobierane client-side przez PromisesCatalog po załadowaniu strony.
  */
 async function getPromises(): Promise<PromiseListItem[]> {
+  // Skip server fetch when building static export for GitHub Pages
+  if (process.env.NEXT_EXPORT === "true") return [];
+
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   try {
     const res = await fetch(`${baseUrl}/api/v1/promises`, {

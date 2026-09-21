@@ -36,6 +36,19 @@ async function getMP(id: string): Promise<MPProfile | null> {
   }
 }
 
+// Required for `next export` (GitHub Pages static build)
+export const dynamic = "force-static";
+export const dynamicParams = false;
+
+/**
+ * Dla `next export`: zwraca jeden placeholder — Next.js 14 wymaga
+ * co najmniej jednego wpisu w prerenderRoutes. Rzeczywiste profile posłów
+ * są obsługiwane client-side (dynamicParams = false ⇒ inne ID → 404).
+ */
+export function generateStaticParams() {
+  return [{ id: "placeholder" }];
+}
+
 /**
  * Dynamiczne generowanie metadanych SEO dla posła.
  */

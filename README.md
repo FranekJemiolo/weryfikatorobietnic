@@ -2,11 +2,15 @@
 
 > **Otwarty, bezstronny system analityczny rozliczania obietnic wyborczych oraz monitorowania prac legislacyjnych Sejmu RP napędzany przez Apache Airflow i modele LLM.**
 
+[![CI](https://github.com/FranekJemiolo/weryfikatorobietnic/actions/workflows/ci.yml/badge.svg)](https://github.com/FranekJemiolo/weryfikatorobietnic/actions/workflows/ci.yml)
+[![Pages](https://github.com/FranekJemiolo/weryfikatorobietnic/actions/workflows/pages.yml/badge.svg)](https://FranekJemiolo.github.io/weryfikatorobietnic)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/managed_by-uv-purple.svg)](https://github.com/astral-sh/uv)
 [![Apache Airflow](https://img.shields.io/badge/orchestration-Apache%20Airflow%202.x-teal.svg)](https://airflow.apache.org/)
-[![Database](https://img.shields.io/badge/database-PostgreSQL%2016%20JSONB-blue.svg)](https://www.postgresql.org/)
+[![Database](https://img.shields.io/badge/database-PostgreSQL%2016%20%2B%20pgvector-blue.svg)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+🌐 **[Demo Landing Page → https://FranekJemiolo.github.io/weryfikatorobietnic](https://FranekJemiolo.github.io/weryfikatorobietnic)**
 
 ---
 
