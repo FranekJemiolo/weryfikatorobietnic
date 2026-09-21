@@ -142,6 +142,9 @@ export function PromiseCard({
             <span className="text-xs text-slate-400 font-medium">
               {category}
             </span>
+            <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300/80 border border-amber-500/20">
+              Mock ETL
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <SubscribeButton

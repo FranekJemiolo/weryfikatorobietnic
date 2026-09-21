@@ -12,8 +12,11 @@
 
 🌐 **[Demo Landing Page → https://FranekJemiolo.github.io/weryfikatorobietnic](https://FranekJemiolo.github.io/weryfikatorobietnic)**
 
+> ⚠️ **INFORMACJA O WERSJI DEMO:**
+> Wersja wdrożona na GitHub Pages jest **interaktywnym DEMO (Preview)** opartym o **dane syntetyczne (Mock Data)**. Prezentuje ona docelowy wygląd i interakcję interfejsu użytkownika po pełnym załadowaniu danych z produkcyjnego potoku **ETL Apache Airflow** (zasilającego bazę PostgreSQL + pgvector z oficjalnych API Sejmu RP i RCL).
+
 <p align="center">
-  <img src="docs/screenshot.png" alt="Weryfikator Obietnic - Interfejs Obywatelskiego Audytu" width="100%">
+  <img src="docs/screenshot.png" alt="Weryfikator Obietnic - Interfejs Obywatelskiego Audytu (Wersja Demo)" width="100%">
 </p>
 
 ---

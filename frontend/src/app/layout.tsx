@@ -28,6 +28,8 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
+import { DemoBanner } from "@/components/DemoBanner";
+
 export default function RootLayout({
   children,
 }: {
@@ -37,6 +39,7 @@ export default function RootLayout({
     <html lang="pl" className="dark">
       <body className="min-h-screen bg-slate-950 font-sans text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
         <Providers>
+          <DemoBanner />
           <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
             <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
               <a href={`${prefix}/#`} className="flex items-center space-x-3 group">
@@ -44,9 +47,14 @@ export default function RootLayout({
                   WO
                 </div>
                 <div>
-                  <h1 className="text-sm font-bold tracking-tight text-white sm:text-base group-hover:text-indigo-300 transition-colors">
-                    Weryfikator Obietnic
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-sm font-bold tracking-tight text-white sm:text-base group-hover:text-indigo-300 transition-colors">
+                      Weryfikator Obietnic
+                    </h1>
+                    <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-amber-300 border border-amber-500/30 tracking-wide">
+                      Demo
+                    </span>
+                  </div>
                   <p className="text-[10px] text-slate-400 sm:text-xs">
                     Sejm RP X Kadencja • Audyt Obywatelski
                   </p>
@@ -70,9 +78,9 @@ export default function RootLayout({
               </nav>
 
               <div className="flex items-center space-x-3">
-                <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400 border border-emerald-500/20">
-                  <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Live Audyt
+                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-300 border border-amber-500/30">
+                  <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  Tryb Demo (Dane Syntetyczne)
                 </span>
                 <a
                   href="https://github.com/FranekJemiolo/weryfikatorobietnic"

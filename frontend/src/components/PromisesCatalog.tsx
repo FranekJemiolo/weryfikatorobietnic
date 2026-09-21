@@ -65,15 +65,20 @@ export function PromisesCatalog({ initialPromises = [] }: PromisesCatalogProps) 
       <FilterBar onFiltersChange={setFilters} />
 
       {/* Nagłówek wyników ze wskaźnikiem liczby znalezionych pozycji */}
-      <div className="flex items-center justify-between px-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-            {isFiltering ? "Wyniki Wyszukiwania" : "Zarejestrowane Deklaracje Wyborcze"}
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+              {isFiltering ? "Wyniki Wyszukiwania" : "Katalog Deklaracji Wyborczych"}
+            </h2>
+            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+              Demo • Mock Data po ETL
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
             {isFiltering
-              ? `Znaleziono ${totalCount} obietnic spełniających kryteria filtrów`
-              : `Łącznie zarejestrowanych obietnic w systemie: ${totalCount}`}
+              ? `Znaleziono ${totalCount} obietnic spełniających kryteria filtrów (przykładowy zbiór demonstracyjny)`
+              : `Zestaw demonstracyjny 12 przykładowych obietnic ilustrujących klasyfikację RAG i statusy po załadowaniu danych przez ETL.`}
           </p>
         </div>
       </div>

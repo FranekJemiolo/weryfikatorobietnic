@@ -153,15 +153,20 @@ export function GovernmentScoreDashboard({ initialData }: GovernmentScoreDashboa
       {/* Nagłówek Panelu */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
         <div>
-          <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-indigo-400">
-            <Activity className="h-4 w-4" />
-            <span>Big Picture • Raport Rządowy</span>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-indigo-400">
+            <span className="inline-flex items-center gap-1.5">
+              <Activity className="h-4 w-4" />
+              Big Picture • Raport Rządowy
+            </span>
+            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+              SYMULACJA DEMO • SZTUCZNE DANE
+            </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mt-1">
             Overall Government Score: Efektywność Koalicji
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Zagregowane dane realizacji deklaracji wyborczych X Kadencji Sejmu RP.
+            Wskaźniki pokazowe (dane syntetyczne obrazujące docelowy raport po automatycznym wyliczeniu przez potok ETL Apache Airflow).
           </p>
         </div>
 

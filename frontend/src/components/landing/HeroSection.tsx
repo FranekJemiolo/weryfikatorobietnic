@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Sparkles, GitMerge, Eye } from "lucide-react";
+import { ArrowRight, Shield, Sparkles, GitMerge, Eye, FlaskConical } from "lucide-react";
 import Link from "next/link";
 
 const STATS = [
@@ -96,13 +96,41 @@ export function HeroSection() {
           <span className="text-slate-300 font-medium">Sejmie RP X Kadencji</span>.
         </motion.p>
 
+        {/* Demo Disclaimer Card */}
+        <motion.div
+          initial={false}
+          animate="visible"
+          variants={fadeUp}
+          custom={2.5}
+          className="mt-6 mx-auto max-w-3xl rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-950/50 via-slate-900/90 to-amber-950/50 p-4 text-left shadow-lg backdrop-blur-md"
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40">
+              <FlaskConical className="h-4 w-4" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                  Wersja Demonstracyjna • Dane Syntetyczne (Mock Data)
+                </span>
+                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-200 border border-amber-500/30">
+                  Podgląd po ETL
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Ta witryna na GitHub Pages jest <strong>interaktywną wersją demonstracyjną</strong>. Wszystkie widoczne wskaźniki, statusy i 12 kart deklaracji są <strong>danymi sztucznymi (mock data)</strong>, które obrazują docelowy wygląd i funkcjonalność systemu <strong>po pełnym załadowaniu danych z potoku ETL</strong> (Apache Airflow pobierający dane z oficjalnego Sejm OpenAPI i RCL + analiza RAG pgvector).
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
         {/* CTA buttons */}
         <motion.div
           initial={false}
           animate="visible"
           variants={fadeUp}
           custom={3}
-          className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
+          className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4"
         >
           <a
             href="#katalog"
