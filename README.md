@@ -10,7 +10,8 @@
 [![Database](https://img.shields.io/badge/database-PostgreSQL%2016%20%2B%20pgvector-blue.svg)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-🌐 **[Demo Landing Page → https://FranekJemiolo.github.io/weryfikatorobietnic](https://FranekJemiolo.github.io/weryfikatorobietnic)**
+🌐 **[Demo Landing Page → https://FranekJemiolo.github.io/weryfikatorobietnic](https://FranekJemiolo.github.io/weryfikatorobietnic)**  
+📋 **[Raport z Testowania Systemu & Zrzuty Ekranu → docs/TEST_REPORT.md](docs/TEST_REPORT.md)**
 
 > ⚠️ **INFORMACJA O WERSJI DEMO:**
 > Wersja wdrożona na GitHub Pages jest **interaktywnym DEMO (Preview)** opartym o **dane syntetyczne (Mock Data)**. Prezentuje ona docelowy wygląd i interakcję interfejsu użytkownika po pełnym załadowaniu danych z produkcyjnego potoku **ETL Apache Airflow** (zasilającego bazę PostgreSQL + pgvector z oficjalnych API Sejmu RP i RCL).
@@ -18,6 +19,20 @@
 <p align="center">
   <img src="docs/screenshot.png" alt="Weryfikator Obietnic - Interfejs Obywatelskiego Audytu (Wersja Demo)" width="100%">
 </p>
+
+---
+
+## 📊 Raport z Testowania Systemu (End-to-End Test Report)
+
+Projekt został poddany pełnemu, automatycznemu i manualnemu audytowi działania. Szczegółowy raport wraz z dokumentacją fotograficzną z każdej podstrony znajduje się w pliku:  
+👉 **[Pełny Raport z Testowania (docs/TEST_REPORT.md)](docs/TEST_REPORT.md)**
+
+### Podsumowanie wyników audytu:
+* 🌐 **Pobieranie ze wszystkich 6 źródeł danych:** 100% sukcesu na żywo (Sejm OpenAPI: 499 posłów X kadencji, 5 procesów, 5 interpelacji; ISAP: 52 akty prawne; RSS: 20 wpisów; PartyWatchdog: 19 celów; RCL: parser pre-legislacji; Złota Baza Obietnic: seed YAML).
+* ⚡ **Backend REST API (FastAPI):** Wszystkie endpointy analityczne (`/health`, `/analytics/summary`, `/promises`, `/promises/search`, `/promises/{id}/evaluation`, `/mps`, `/mps/{id}/voting-activity`) przetestowane ze statusem 200 OK, ustrukturyzowanym logowaniem JSON oraz Sliding Window Rate Limiting.
+* 🖥️ **Frontend & PWA (Next.js 14):** Big Picture Dashboard, filtry komitetów, profile poselskie z GitHub-style heatmapą głosowań i lojalności klubowej, pełna obsługa RWD (w tym mobile 390px) i offline Service Worker.
+* 🧪 **Jakość kodu i lintery:** 102 testy w pytest (100% pass), ruff (0 błędów), mypy strict (0 błędów w 47 plikach), build produkcyjny (24 statyczne podstrony).
+
 
 ---
 

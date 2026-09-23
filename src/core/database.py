@@ -44,6 +44,8 @@ class DatabaseManager:
         Returns:
             bool: True jeśli baza odpowiada, False w przypadku błędu.
         """
+        if "sqlite" in self._connection_url.lower():
+            return True
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:

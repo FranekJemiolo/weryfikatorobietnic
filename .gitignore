@@ -56,6 +56,8 @@ data/raw/
 !data/initial_promises.yaml
 *.sqlite
 *.sqlite3
+*.db
+
 
 # IDEs & OS
 .DS_Store

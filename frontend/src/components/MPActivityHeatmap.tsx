@@ -162,7 +162,10 @@ const fetchDailyActivity = async (
   try {
     const res = await fetch(url);
     if (res.ok) {
-      return res.json();
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
     }
   } catch {
     // fallback
@@ -172,7 +175,10 @@ const fetchDailyActivity = async (
   try {
     const res2 = await fetch(fallbackUrl);
     if (res2.ok) {
-      return res2.json();
+      const data2 = await res2.json();
+      if (Array.isArray(data2) && data2.length > 0) {
+        return data2;
+      }
     }
   } catch {
     // fallback
