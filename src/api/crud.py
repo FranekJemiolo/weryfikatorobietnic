@@ -244,10 +244,7 @@ def get_mps_list(
     total = session.exec(count_stmt).one() or 0
 
     data_stmt = (
-        select(MP)
-        .order_by(col(MP.last_name), col(MP.first_name))
-        .offset(offset)
-        .limit(limit)
+        select(MP).order_by(col(MP.last_name), col(MP.first_name)).offset(offset).limit(limit)
     )
     if conditions:
         data_stmt = data_stmt.where(and_(*conditions))

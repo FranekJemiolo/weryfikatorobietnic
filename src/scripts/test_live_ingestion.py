@@ -204,9 +204,7 @@ def test_seed_promises() -> dict[str, Any]:
     promises = data.get("promises", [])
     results: dict[str, Any] = {
         "seed_promises_count": len(promises),
-        "promises": [
-            {"id": p["id"], "party": p["party"], "title": p["title"]} for p in promises
-        ],
+        "promises": [{"id": p["id"], "party": p["party"], "title": p["title"]} for p in promises],
     }
     logger.info(
         "Seed Promises: Sukces! Zweryfikowano %d obietnic w pliku referencyjnym.",
