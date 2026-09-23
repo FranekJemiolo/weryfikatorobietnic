@@ -68,3 +68,24 @@ def test_ai_analyzer_osr_financial_extraction() -> None:
     # Heurystyka lub LLM powinny wyłapać kwotę rzędu 35 mld (35 000 000 000)
     assert result["estimated_budget_impact_pln"] == 35_000_000_000.0
     assert len(result["summary"]) > 10
+
+
+def test_download_pdf_to_file(tmp_path: fitz.Rect) -> None:
+    """Weryfikuje strumieniowe pobieranie PDF bezpośrednio na dysk."""
+    from pathlib import Path
+
+    import respx
+    from httpx import Response
+
+    from src.parsers.document_parser import download_pdf_to_file
+
+    fake_url = "https://example.com/test_bill.pdf"
+    fake_pdf = b"%PDF-1.4 test document content for streaming"
+    target_file = Path(str(tmp_path)) / "test_bill.pdf"
+
+    with respx.mock:
+        respx.get(fake_url).mock(return_value=Response(200, content=fake_pdf))
+        saved_path = download_pdf_to_file(fake_url, target_file)
+
+        assert saved_path.exists()
+        assert saved_path.read_bytes() == fake_pdf

@@ -172,6 +172,7 @@ import {
   SHOWCASE_PROMISE_DETAILS,
   SHOWCASE_TIMELINES,
   SHOWCASE_ANALYTICS,
+  SHOWCASE_MPS_LIST,
 } from "./showcaseData";
 
 export const api = {
@@ -362,6 +363,49 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  /**
+   * Pobiera listę posłów (Sprawdź Posła) z wyszukiwarką i filtrem klubów.
+   */
+  async getMPs(params?: {
+    q?: string;
+    club?: string;
+    active_only?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ items: MPProfile[]; total: number }> {
+    try {
+      const searchParams = new URLSearchParams();
+      if (params?.q) searchParams.set("q", params.q);
+      if (params?.club && params.club !== "ALL") searchParams.set("club", params.club);
+      if (params?.active_only !== undefined) searchParams.set("active_only", params.active_only.toString());
+      if (params?.limit !== undefined) searchParams.set("limit", params.limit.toString());
+      if (params?.offset !== undefined) searchParams.set("offset", params.offset.toString());
+
+      const queryString = searchParams.toString();
+      return await request<{ items: MPProfile[]; total: number }>(
+        `/api/v1/mps${queryString ? `?${queryString}` : ""}`
+      );
+    } catch {
+      let filtered = [...SHOWCASE_MPS_LIST];
+      if (params?.q) {
+        const query = params.q.toLowerCase();
+        filtered = filtered.filter(
+          (m) =>
+            m.first_name.toLowerCase().includes(query) ||
+            m.last_name.toLowerCase().includes(query) ||
+            m.club.toLowerCase().includes(query)
+        );
+      }
+      if (params?.club && params.club !== "ALL") {
+        filtered = filtered.filter((m) => m.club.toLowerCase().includes(params.club!.toLowerCase()));
+      }
+      return {
+        items: filtered,
+        total: filtered.length,
+      };
+    }
   },
 };
 

@@ -214,6 +214,48 @@ def search_promises(
     return items, int(total)
 
 
+def get_mps_list(
+    session: Session,
+    q: str | None = None,
+    club: str | None = None,
+    active_only: bool = True,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[MP], int]:
+    """Zwraca listę posłów z opcjonalnym filtrowaniem po imieniu/nazwisku, klubie i statusie aktywności."""
+    conditions = []
+    if active_only:
+        conditions.append(col(MP.active) == True)  # noqa: E712
+    if club and club != "ALL":
+        conditions.append(col(MP.club) == club)
+    if q and q.strip():
+        search_term = f"%{q.strip().lower()}%"
+        conditions.append(
+            or_(
+                func.lower(col(MP.first_name)).like(search_term),
+                func.lower(col(MP.last_name)).like(search_term),
+                func.lower(col(MP.club)).like(search_term),
+            )
+        )
+
+    count_stmt = select(func.count(col(MP.id)))
+    if conditions:
+        count_stmt = count_stmt.where(and_(*conditions))
+    total = session.exec(count_stmt).one() or 0
+
+    data_stmt = (
+        select(MP)
+        .order_by(col(MP.last_name), col(MP.first_name))
+        .offset(offset)
+        .limit(limit)
+    )
+    if conditions:
+        data_stmt = data_stmt.where(and_(*conditions))
+    mps = session.exec(data_stmt).all()
+
+    return list(mps), int(total)
+
+
 def get_mp_by_id(session: Session, mp_id: int) -> MP | None:
     """Pobiera dane posła po identyfikatorze numerycznym."""
     return session.get(MP, mp_id)

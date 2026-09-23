@@ -119,28 +119,35 @@ Projekt realizowany jest w 5 ustrukturyzowanych etapach z nadzorem ludzkim (*Hum
 - [x] Przygotowanie modularnej architektury (`/src`, `/dags`, `/tests`, `/docker`).
 - [x] Skonfigurowanie narzędzi jakości kodu: **Ruff**, **Mypy (Strict)** oraz **Pytest**.
 
-### Faza 2: Ingestia Danych Sejmowych (Sejm OpenAPI & Głosowania)
-- [ ] Implementacja DAG-ów Airflow cyklicznie pobierających procesy legislacyjne (`/processes`) i druki (`/prints`).
-- [ ] Mapowanie statusów spraw (Wpłynęło -> I czytanie -> Komisje -> Uchwalono -> Podpisano).
-- [ ] Pobieranie protokołów posiedzeń i głosowań imiennych posłów (`/votings/{sitting}/{votingNum}`).
-- [ ] Parsowanie i indeksowanie list obecności oraz głosowań w relacji do przynależności klubowej.
+### Faza 2: Ingestia Danych Sejmowych (Sejm OpenAPI & Głosowania) (Ukończona)
+- [x] Implementacja DAG-ów Airflow cyklicznie pobierających procesy legislacyjne (`/processes`) i druki (`/prints`).
+- [x] Mapowanie statusów spraw (Wpłynęło -> I czytanie -> Komisje -> Uchwalono -> Podpisano).
+- [x] Pobieranie protokołów posiedzeń i głosowań imiennych posłów (`/votings/{sitting}/{votingNum}`).
+- [x] Parsowanie i indeksowanie list obecności oraz głosowań w relacji do przynależności klubowej.
+- [x] Klient asynchroniczny `SejmApiClient` z mechanizmem **Circuit Breaker** chroniącym przed kaskadową awarią serwerów rządowych.
 
-### Faza 3: Nasłuch Stron Partii i Śledzenie Modyfikacji
-- [ ] Moduł crawlerów śledzących oficjalne witryny ugrupowań (BeautifulSoup).
-- [ ] Oczyszczanie DOM z elementów dynamicznych (banery cookie, liczniki, nawigacja) i hashowanie SHA-256.
-- [ ] Automatyczne alerty o wykryciu „cichych modyfikacji” w tekstach deklaracji programowych.
+### Faza 3: Nasłuch Stron Partii i Śledzenie Modyfikacji (Ukończona)
+- [x] Moduł crawlerów śledzących oficjalne witryny ugrupowań (BeautifulSoup, Scrapy).
+- [x] Oczyszczanie DOM z elementów dynamicznych (banery cookie, liczniki, nawigacja) i hashowanie SHA-256.
+- [x] Automatyczne alerty o wykryciu „cichych modyfikacji” w tekstach deklaracji programowych (`PromiseRevision`).
+- [x] Nasłuch feedów RSS/Atom z KPRM i ministerstw oraz integracja z Rządowym Procesem Legislacyjnym (RCL).
 
-### Faza 4: Silnik Ewaluacji i Kategoryzacji LLM (Structured Outputs)
-- [ ] Prompty analityczne działające w reżimie *Chain of Thought* i restrykcyjnego formatu JSON Schema.
-- [ ] Porównywanie artykułów ustaw z obietnicami i kategoryzacja: `W_PELNI_ZREALIZOWANA`, `CZESCIOWO_ZREALIZOWANA`, `ZMIENIONA_KONCEPCJA`, `SPRZECZNA`.
-- [ ] Generowanie bezstronnych, 2-3 zdaniowych podsumowań różnic dla obywatela oraz wyliczanie wskaźnika zgodności (`alignment_score` 0–100).
-- [ ] Moduł wyliczania czasu: `Time-to-Delivery` (licznik dni od obietnicy/zaprzysiężenia rządu do głosowania).
+### Faza 4: Silnik Ewaluacji i Kategoryzacji LLM (Structured Outputs) (Ukończona)
+- [x] Prompty analityczne działające w reżimie *Chain of Thought* i restrykcyjnego formatu JSON Schema (Google GenAI Gemini).
+- [x] Porównywanie artykułów ustaw z obietnicami i kategoryzacja: `W_PELNI`, `CZESCIOWO`, `SPRZECZNA`, `BRAK_POWIAZANIA`.
+- [x] Wyszukiwanie semantyczne w **pgvector** z dedykowanym indeksem **HNSW** (`m=16, ef_construction=64`).
+- [x] Bezpieczne strumieniowe pobieranie załączników PDF (`download_pdf_to_file`) chroniące workery Airflow przed OOM.
+- [x] Moduł wyliczania czasu: `Time-to-Delivery` (licznik dni od obietnicy/zaprzysiężenia rządu do podpisania ustawy).
+- [x] Ekstrakcja danych finansowych i OSR (Ocena Skutków Regulacji).
 
-### Faza 5: Frontend i Wizualizacja (Otwarty Panel Obywatelski)
-- [ ] Budowa aplikacji **Progressive Web App (PWA)** opartej o nowoczesne narzędzia open-source.
-- [ ] Wizualna oś czasu (Timeline) dla każdego procesu prawnego.
-- [ ] Podstrona **„Weryfikuj Posła”** (frekwencja, dyscyplina klubowa, udział w kluczowych głosowaniach).
-- [ ] Główny wskaźnik wykonania programu rządowego (*Overall Government Execution Score*).
+### Faza 5: Frontend Obywatelski PWA i Serwowanie Danych (Ukończona)
+- [x] Aplikacja **Progressive Web App (PWA)** w Next.js (App Router) + Tailwind CSS + Lucide Icons + Framer Motion.
+- [x] Wskaźnik wykonania programu rządowego (*Overall Government Score Dashboard*) oparty o Recharts.
+- [x] Interaktywny katalog obietnic z wyszukiwarką czasu rzeczywistego i filtrami wielokryterialnymi (`FilterBar`).
+- [x] Podstrona **„Sprawdź Posła”** (`/mps`) z wyszukiwarką parlamentarzystów, filtrami klubów oraz profilem (`/mps/[id]`) z heatmapą aktywności i frekwencji.
+- [x] Wizualna oś czasu legislacji (`LegislativeTimeline`) na podstronie szczegółów obietnicy (`/promises/[id]`).
+- [x] Zabezpieczenia API: Ogranicznik częstotliwości zapytań (**Sliding Window Rate Limiting**), pamięć podręczna TTL dla analityki oraz CORS.
+- [x] Mechanizm „Aktywnego Obywatela”: powiadomienia **Web Push (PWA)** oraz Webhooki dla dziennikarzy i NGO zabezpieczone podpisem HMAC-SHA256.
 
 ---
 
@@ -209,6 +216,16 @@ Dostęp do usług:
 uv run uvicorn src.api:app --reload --port 8000
 ```
 - **Interaktywna dokumentacja Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Kluczowe Endpointy REST API:**
+  - `GET /api/v1/promises` – Lista deklaracji wyborczych z oceną LLM i kosztem OSR.
+  - `GET /api/v1/promises/search` – Wyszukiwarka obietnic z filtrami i ochroną Rate Limiting.
+  - `GET /api/v1/promises/{id}/evaluation` – Szczegóły ewaluacji AI i wycinki przepisów prawnych.
+  - `GET /api/v1/promises/{id}/timeline` – Oś czasu legislacji (Time-to-Delivery).
+  - `GET /api/v1/analytics/summary` – Globalne statystyki rządu (Government Score z cache TTL).
+  - `GET /api/v1/mps` – Katalog posłów X kadencji z wyszukiwarką i filtrami klubów.
+  - `GET /api/v1/mps/{id}` – Profil posła, frekwencja i liczba interpelacji.
+  - `GET /api/v1/mps/{id}/voting-activity` – Rejestr imiennych głosowań posła.
+  - `POST /api/v1/subscribe` & `/api/v1/webhooks/ngo` – Subskrypcje Web Push i Webhooki NGO.
 
 ---
 

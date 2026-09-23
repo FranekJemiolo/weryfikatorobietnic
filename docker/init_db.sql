@@ -10,6 +10,7 @@ CREATE DATABASE IF NOT EXISTS weryfikator_db;
 -- Włączenie rozszerzeń (UUID i unaccent dla wyszukiwania w języku polskim)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "unaccent";
+CREATE EXTENSION IF NOT EXISTS "vector";
 
 -- ------------------------------------------------------------------------------
 -- 1. Warstwa Stagingowa (Raw Data Lake)

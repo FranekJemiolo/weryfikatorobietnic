@@ -1,5 +1,4 @@
-"""Routing endpointów FastAPI dla Weryfikatora Obietnic."""
-
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -11,6 +10,7 @@ from src.api.crud import (
     get_analytics_summary,
     get_mp_by_id,
     get_mp_voting_activity,
+    get_mps_list,
     get_promise_evaluation_detail,
     get_promise_timeline,
     get_promises_summary,
@@ -18,10 +18,12 @@ from src.api.crud import (
     remove_push_subscription,
     search_promises,
 )
+from src.api.limiter import evaluation_rate_limiter, search_rate_limiter
 from src.api.schemas import (
     AnalyticsSummary,
     DailyActivityItem,
     MPProfileResponse,
+    MPSearchResponse,
     NgoWebhookCreate,
     NgoWebhookResponse,
     PromiseEvaluationDetail,
@@ -43,6 +45,10 @@ router = APIRouter(prefix="/api/v1")
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
+# Pamięć podręczna wskaźników rządu (TTL: 5 minut)
+_analytics_cache: dict[str, tuple[float, AnalyticsSummary]] = {}
+ANALYTICS_CACHE_TTL_SECONDS: float = 300.0
+
 
 @router.get(
     "/analytics/summary",
@@ -53,8 +59,16 @@ SessionDep = Annotated[Session, Depends(get_session)]
 async def get_government_score_summary(
     session: SessionDep,
 ) -> AnalyticsSummary:
-    """Zwraca globalne statystyki obietnic rządu: total, fulfilled, in_progress, broken oraz średni czas realizacji."""
-    return get_analytics_summary(session)
+    """Zwraca globalne statystyki obietnic rządu: total, fulfilled, in_progress, broken oraz średni czas realizacji z pamięcią podręczną TTL."""
+    now = time.monotonic()
+    if "summary" in _analytics_cache:
+        cached_time, cached_data = _analytics_cache["summary"]
+        if now - cached_time < ANALYTICS_CACHE_TTL_SECONDS:
+            return cached_data
+
+    result = get_analytics_summary(session)
+    _analytics_cache["summary"] = (now, result)
+    return result
 
 
 @router.get(
@@ -62,6 +76,7 @@ async def get_government_score_summary(
     response_model=PromiseSearchResponse,
     tags=["Obietnice"],
     summary="Wyszukiwarka obietnic z filtrami i paginacją",
+    dependencies=[Depends(search_rate_limiter)],
 )
 async def search_promises_endpoint(
     session: SessionDep,
@@ -114,6 +129,7 @@ async def list_promises(
     response_model=PromiseEvaluationDetail,
     tags=["Obietnice"],
     summary="Szczegóły ewaluacji obietnicy wraz z powiązanymi artykułami ustaw (Diff)",
+    dependencies=[Depends(evaluation_rate_limiter)],
 )
 async def get_promise_evaluation(
     id: str,
@@ -147,6 +163,51 @@ async def get_promise_legislative_timeline(
             detail=f"Nie znaleziono obietnicy o identyfikatorze '{id}'.",
         )
     return timeline
+
+
+@router.get(
+    "/mps",
+    response_model=MPSearchResponse,
+    tags=["Posłowie"],
+    summary="Katalog posłów z wyszukiwarką, filtrami klubów i paginacją (Sprawdź Posła)",
+)
+async def list_mps_endpoint(
+    session: SessionDep,
+    q: str | None = Query(default=None, description="Imię, nazwisko lub fraza kluczowa"),
+    club: str | None = Query(
+        default=None,
+        description="Klub poselski (np. Koalicja Obywatelska, Prawo i Sprawiedliwość, Nowa Lewica)",
+    ),
+    active_only: bool = Query(default=True, description="Tylko aktywni posłowie"),
+    limit: int = Query(default=50, ge=1, le=100, description="Liczba posłów na stronę"),
+    offset: int = Query(default=0, ge=0, description="Przesunięcie paginacji"),
+) -> MPSearchResponse:
+    """Zwraca listę posłów spełniających kryteria wyszukiwania z obsługą paginacji."""
+    items, total = get_mps_list(
+        session=session,
+        q=q,
+        club=club,
+        active_only=active_only,
+        limit=limit,
+        offset=offset,
+    )
+    profile_items = [
+        MPProfileResponse(
+            id=mp.id or 0,
+            first_name=mp.first_name,
+            last_name=mp.last_name,
+            club=mp.club,
+            active=mp.active,
+            interpellations_count=getattr(mp, "interpellations_count", 0),
+        )
+        for mp in items
+    ]
+    return MPSearchResponse(
+        items=profile_items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(

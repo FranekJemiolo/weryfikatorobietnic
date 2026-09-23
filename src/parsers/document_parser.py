@@ -54,6 +54,44 @@ def download_pdf(url: str, timeout: float = 30.0) -> bytes:
         return content
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=0.5, min=1.0, max=5.0),
+    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+    reraise=True,
+)
+def download_pdf_to_file(url: str, target_path: Path, timeout: float = 60.0) -> Path:
+    """Strumieniowe pobieranie pliku PDF bezpośrednio na dysk bez buforowania całości w pamięci RAM.
+
+    Chroni procesy Airflow przed błędem OOM Killer przy pobieraniu załączników i wielotomowych projektów ustaw.
+
+    Args:
+        url: Bezpośredni adres URL do pliku PDF.
+        target_path: Ścieżka docelowa pliku na dysku.
+        timeout: Maksymalny czas pobierania w sekundach.
+
+    Returns:
+        Ścieżka do zapisanego pliku PDF.
+    """
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with httpx.Client(
+        headers=DEFAULT_PDF_HEADERS, timeout=timeout, follow_redirects=True
+    ) as client:
+        with client.stream("GET", url) as response:
+            response.raise_for_status()
+            with open(target_path, "wb") as f:
+                first_chunk = True
+                for chunk in response.iter_bytes(chunk_size=65536):
+                    if first_chunk:
+                        if not chunk.startswith(b"%PDF-"):
+                            raise ValueError(
+                                f"Pobrany zasób z {url} nie jest poprawnym plikiem PDF (brak sygnatury %PDF-)."
+                            )
+                        first_chunk = False
+                    f.write(chunk)
+    return target_path
+
+
 class LegalDocumentParser:
     """Parser dokumentów prawnych i OSR oparty na silniku PyMuPDF (fitz)."""
 

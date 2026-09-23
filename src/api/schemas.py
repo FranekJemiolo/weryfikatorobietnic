@@ -103,6 +103,15 @@ class PromiseSearchResponse(BaseModel):
     offset: int
 
 
+class MPSearchResponse(BaseModel):
+    """Wynik zapytania katalogu posłów z obsługą filtrów i paginacji."""
+
+    items: list[MPProfileResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 class PushSubscriptionKeys(BaseModel):
     """Klucze kryptograficzne subskrypcji Web Push (p256dh i auth)."""
 

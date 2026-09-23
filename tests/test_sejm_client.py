@@ -159,3 +159,31 @@ async def test_http_429_rate_limiting_retries_three_times() -> None:
             assert route.call_count == 3
             assert isinstance(exc_info.value, SejmApiError)
             assert exc_info.value.status_code == 429
+
+
+@pytest.mark.anyio
+async def test_circuit_breaker_opens_after_consecutive_failures() -> None:
+    """Weryfikuje, czy po serii błędów wyłącznik Circuit Breaker odcina kolejne zapytania."""
+    from src.api_clients.sejm_client import CircuitBreakerOpenError
+
+    with respx.mock(base_url="https://api.sejm.gov.pl/sejm") as respx_mock:
+        respx_mock.get("/term10/MP").mock(return_value=Response(503, text="Service Unavailable"))
+
+        async with SejmApiClient(term=10) as client:
+            client.circuit_breaker.failure_threshold = 2
+
+            # 1. Błąd serwera (zostanie zarejestrowany przez CB)
+            with pytest.raises(SejmServerError):
+                await client.get_mps()
+
+            # 2. Drugi błąd serwera
+            with pytest.raises(SejmServerError):
+                await client.get_mps()
+
+            assert client.circuit_breaker.state == "OPEN"
+
+            # 3. Kolejne wywołanie powinno zostać natychmiast zablokowane przez Circuit Breaker
+            with pytest.raises(CircuitBreakerOpenError) as exc_info:
+                await client.get_mps()
+
+            assert "otwarty" in str(exc_info.value)

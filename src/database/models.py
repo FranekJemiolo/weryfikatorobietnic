@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column
+from sqlalchemy import Column, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import JSON, Field, Relationship, SQLModel
 
@@ -249,6 +249,16 @@ class BillArticle(SQLModel, table=True):
     )
 
     bill: Bill | None = Relationship(back_populates="articles")
+
+    __table_args__ = (
+        Index(
+            "idx_bill_articles_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
 
 class Committee(SQLModel, table=True):

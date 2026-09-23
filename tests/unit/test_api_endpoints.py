@@ -195,3 +195,37 @@ def test_search_promises_endpoint() -> None:
     assert empty_resp.status_code == 200
     assert empty_resp.json()["total"] == 0
     assert empty_resp.json()["items"] == []
+
+
+def test_list_mps_endpoint() -> None:
+    """Weryfikuje katalog posłów: filtrowanie po nazwisku, klubie oraz paginację."""
+    response = client.get("/api/v1/mps?q=Tusk&club=KO")
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert "total" in data
+    assert data["total"] >= 1
+    assert data["items"][0]["last_name"] == "Tusk"
+    assert data["items"][0]["club"] == "KO"
+
+    # Wyszukiwanie nieistniejącego posła
+    empty_resp = client.get("/api/v1/mps?q=NieistniejacyPosel999")
+    assert empty_resp.status_code == 200
+    assert empty_resp.json()["total"] == 0
+    assert empty_resp.json()["items"] == []
+
+
+def test_rate_limiter_unit() -> None:
+    """Weryfikuje działanie ogranicznika zapytań (SlidingWindowRateLimiter)."""
+    from src.api.limiter import SlidingWindowRateLimiter
+
+    limiter = SlidingWindowRateLimiter(times=3, seconds=10)
+    client_ip = "192.168.1.100"
+
+    assert limiter.is_rate_limited(client_ip)[0] is False
+    assert limiter.is_rate_limited(client_ip)[0] is False
+    assert limiter.is_rate_limited(client_ip)[0] is False
+    # 4. zapytanie powinno zostać zablokowane
+    is_limited, retry_after = limiter.is_rate_limited(client_ip)
+    assert is_limited is True
+    assert retry_after > 0

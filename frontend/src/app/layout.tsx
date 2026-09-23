@@ -66,6 +66,9 @@ export default function RootLayout({
                 <a href={`${prefix}/#katalog`} className="hover:text-white transition-colors">
                   Katalog Obietnic
                 </a>
+                <a href={`${prefix}/mps`} className="hover:text-white transition-colors">
+                  Sprawdź Posła
+                </a>
                 <a href={`${prefix}/#dashboard`} className="hover:text-white transition-colors">
                   Wskaźniki Rządu
                 </a>

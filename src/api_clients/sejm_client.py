@@ -4,6 +4,7 @@ Zapewnia odporność na awarie sieciowe, limity zapytań (HTTP 429) z wykorzysta
 biblioteki Tenacity (Exponential Backoff) oraz ścisłą walidację schematów Pydantic v2.
 """
 
+import time
 from typing import Any
 
 import httpx
@@ -43,6 +44,49 @@ class SejmRateLimitError(SejmApiError):
     """Przekroczono limit dopuszczalnych zapytań (HTTP 429 Too Many Requests)."""
 
 
+class CircuitBreakerOpenError(SejmApiError):
+    """Wyłącznik awaryjny (Circuit Breaker) jest OTWARTY - ochrona przed kaskadową awarią."""
+
+
+class CircuitBreaker:
+    """Implementacja wzorca Circuit Breaker dla Sejm API (CLOSED -> OPEN -> HALF_OPEN)."""
+
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 60.0,
+    ) -> None:
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.state: str = "CLOSED"
+        self.failure_count: int = 0
+        self.last_failure_time: float = 0.0
+
+    def record_success(self) -> None:
+        """Rejestruje udane zapytanie i resetuje stan licznika awarii."""
+        self.failure_count = 0
+        self.state = "CLOSED"
+
+    def record_failure(self) -> None:
+        """Rejestruje błąd serwera. Po przekroczeniu progu otwiera obwód."""
+        self.failure_count += 1
+        self.last_failure_time = time.monotonic()
+        if self.failure_count >= self.failure_threshold:
+            self.state = "OPEN"
+
+    def can_execute(self) -> bool:
+        """Sprawdza, czy zapytanie może zostać wysłane do zewnętrznego serwera."""
+        if self.state == "CLOSED":
+            return True
+        now = time.monotonic()
+        if self.state == "OPEN":
+            if now - self.last_failure_time >= self.recovery_timeout:
+                self.state = "HALF_OPEN"
+                return True
+            return False
+        return True
+
+
 class SejmApiClient:
     """Klient HTTP do asynchronicznego pobierania danych z Sejm OpenAPI."""
 
@@ -66,6 +110,7 @@ class SejmApiClient:
         self.term = term
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.circuit_breaker = CircuitBreaker()
         self._external_client = client is not None
         self._client = client or httpx.AsyncClient(
             headers={
@@ -95,11 +140,17 @@ class SejmApiClient:
     async def _request(
         self, method: str, endpoint: str, params: dict[str, Any] | None = None
     ) -> Any:
-        """Wykonuje żądanie HTTP z automatycznym ponawianiem (Exponential Backoff dla HTTP 429)."""
+        """Wykonuje żądanie HTTP z automatycznym ponawianiem i ochroną Circuit Breaker."""
+        if not self.circuit_breaker.can_execute():
+            raise CircuitBreakerOpenError(
+                "Obwód wyłącznika (Circuit Breaker) dla Sejm API jest otwarty z powodu powtarzających się awarii zewnętrznych serwerów."
+            )
+
         url = f"{self.base_url}{endpoint}"
         try:
             response = await self._client.request(method, url, params=params)
         except httpx.RequestError as exc:
+            self.circuit_breaker.record_failure()
             raise SejmApiError(f"Błąd sieciowy podczas łączenia z {url}: {exc}") from exc
 
         if response.status_code == 429:
@@ -108,11 +159,13 @@ class SejmApiClient:
             )
 
         if response.status_code == 404:
+            self.circuit_breaker.record_success()
             raise SejmNotFoundError(
                 f"Nie odnaleziono zasobu w Sejm API (HTTP 404): {url}", status_code=404
             )
 
         if response.status_code >= 500:
+            self.circuit_breaker.record_failure()
             raise SejmServerError(
                 f"Serwery Sejmu zwróciły błąd wewnętrzny (HTTP {response.status_code}): {response.text}",
                 status_code=response.status_code,
@@ -124,6 +177,7 @@ class SejmApiClient:
                 status_code=response.status_code,
             )
 
+        self.circuit_breaker.record_success()
         return response.json()
 
     async def get_mps(self) -> list[MPModel]:
