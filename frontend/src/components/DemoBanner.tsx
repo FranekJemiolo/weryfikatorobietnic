@@ -5,8 +5,10 @@ import { FlaskConical, Database, ArrowRight, X, Sparkles } from "lucide-react";
 
 export function DemoBanner() {
   const [closed, setClosed] = useState(false);
+  const isDemo = process.env.NEXT_PUBLIC_IS_DEMO === "true";
 
-  if (closed) {
+  if (!isDemo || closed) {
+    if (!isDemo) return null;
     return (
       <aside aria-label="Wskaźnik trybu demonstracyjnego" className="border-b border-amber-500/30 bg-amber-950/40 px-4 py-1.5 text-center text-xs text-amber-300">
         <span className="font-semibold">⚠️ TRYB DEMO:</span> Prezentowane dane są sztuczne (Mock Data po ETL).{" "}

@@ -158,15 +158,23 @@ export function GovernmentScoreDashboard({ initialData }: GovernmentScoreDashboa
               <Activity className="h-4 w-4" />
               Big Picture • Raport Rządowy
             </span>
-            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-300">
-              SYMULACJA DEMO • SZTUCZNE DANE
-            </span>
+            {process.env.NEXT_PUBLIC_IS_DEMO === "true" ? (
+              <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                SYMULACJA DEMO • SZTUCZNE DANE
+              </span>
+            ) : (
+              <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                DANE NA ŻYWO • SEJM RP X KADENCJI
+              </span>
+            )}
           </div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mt-1">
             Overall Government Score: Efektywność Koalicji
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Wskaźniki pokazowe (dane syntetyczne obrazujące docelowy raport po automatycznym wyliczeniu przez potok ETL Apache Airflow).
+            {process.env.NEXT_PUBLIC_IS_DEMO === "true"
+              ? "Wskaźniki pokazowe (dane syntetyczne obrazujące docelowy raport po automatycznym wyliczeniu przez potok ETL Apache Airflow)."
+              : "Agregacja wskaźników realizacji deklaracji wyborczych oraz spójności głosowań koalicji rządzącej i opozycji na podstawie bazy danych."}
           </p>
         </div>
 

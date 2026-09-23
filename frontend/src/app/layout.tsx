@@ -35,6 +35,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const isDemo = process.env.NEXT_PUBLIC_IS_DEMO === "true";
+
   return (
     <html lang="pl" className="dark">
       <body className="min-h-screen bg-slate-950 font-sans text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
@@ -51,9 +53,15 @@ export default function RootLayout({
                     <h1 className="text-sm font-bold tracking-tight text-white sm:text-base group-hover:text-indigo-300 transition-colors">
                       Weryfikator Obietnic
                     </h1>
-                    <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-amber-300 border border-amber-500/30 tracking-wide">
-                      Demo
-                    </span>
+                    {isDemo ? (
+                      <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-amber-300 border border-amber-500/30 tracking-wide">
+                        Demo
+                      </span>
+                    ) : (
+                      <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-extrabold uppercase text-emerald-300 border border-emerald-500/30 tracking-wide">
+                        PROD
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] text-slate-400 sm:text-xs">
                     Sejm RP X Kadencja • Audyt Obywatelski
@@ -81,10 +89,17 @@ export default function RootLayout({
               </nav>
 
               <div className="flex items-center space-x-3">
-                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-300 border border-amber-500/30">
-                  <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  Tryb Demo (Dane Syntetyczne)
-                </span>
+                {isDemo ? (
+                  <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-300 border border-amber-500/30">
+                    <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Tryb Demo (Dane Syntetyczne)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300 border border-emerald-500/30">
+                    <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Baza Danych na Żywo
+                  </span>
+                )}
                 <a
                   href="https://github.com/FranekJemiolo/weryfikatorobietnic"
                   target="_blank"

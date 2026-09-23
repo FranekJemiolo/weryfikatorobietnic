@@ -90,39 +90,47 @@ DATABASE_URL="sqlite:///./weryfikator.db" uv run uvicorn src.api.main:app --host
 
 ---
 
-## 4. Testy Frontendu i Dokumentacja Fotograficzna
+## 4. Testy Frontendu w Wersji Produkcyjnej (Baza na Żywo) i Dokumentacja Fotograficzna
 
-Frontend zrealizowany w Next.js 14 został uruchomiony na porcie `3000`. Przetestowano wszystkie ścieżki routingu, komponenty interaktywne (wyszukiwarka z debounce, filtry komitetów, powiadomienia Web Push, wykresy Recharts) oraz responsywność RWD.
+Frontend zrealizowany w Next.js 14 został uruchomiony w **pełnym trybie produkcyjnym** (`NEXT_PUBLIC_IS_DEMO=false`) i połączony bezpośrednio z aktywnym backendem FastAPI (`localhost:8000`) zasilanym danymi pobranymi z oficjalnych źródeł (Sejm OpenAPI, RCL, YAML Złotej Bazy 12 obietnic).
 
-### 4.1. Strona Główna – Hero Section & Metryki Audytora
-Widok strony głównej z banerem transparentności, kluczowymi wskaźnikami ilościowymi (460 monitorowanych posłów, 2400+ obietnic, 99.7% dostępność API) oraz wyszukiwarką.
+W bazie danych zaindeksowano:
+- **12 deklaracji programowych** wszystkich ugrupowań parlamentarnych (KO, Trzecia Droga, Nowa Lewica, PiS, Konfederacja)
+- **Rzeczywiste projekty ustaw Sejmu RP X Kadencji** (Druki sejmowe nr 341, 245, 322, 387, 112, 419) wraz z wycinkami artykułów normatywnych i oszacowaniami OSR
+- **499 posłów X Kadencji** pobranych na żywo z oficjalnego punktu końcowego `https://api.sejm.gov.pl/sejm/term10/MP`
+- **Rejestr głosowań plenarnych i lojalności poselskiej** generujący dynamiczną heatmapę obecności.
 
-![Strona Główna – Hero Section](screenshots/01_landing_hero.png)
+Poniżej przedstawiono zaktualizowaną dokumentację fotograficzną z interfejsu produkcyjnego:
 
-### 4.2. Big Picture Dashboard & Katalog Obietnic
-Globalny wskaźnik efektywności koalicji (Overall Government Score: 28%), średni czas dowozu ustawy (142 dni), rozkład statusów oraz interaktywny katalog deklaracji wyborczych z audytami RAG.
+### 4.1. Strona Główna – Hero Section & Status Produkcyjny
+Widok strony głównej z zielonym wskaźnikiem stanu `● Baza Danych na Żywo`, etykietą `PROD`, panelem potwierdzającym audyt Sejmu RP X Kadencji w czasie rzeczywistym oraz brakiem jakichkolwiek ostrzeżeń demonstracyjnych.
 
-![Big Picture Dashboard & Katalog](screenshots/02_landing_full_catalog.png)
+![Strona Główna – Hero Section (Wersja Produkcyjna)](screenshots/01_landing_hero.png)
+
+### 4.2. Big Picture Dashboard & Pełny Katalog Obietnic
+Globalny wskaźnik efektywności koalicji (Overall Government Score: 50% w pełni zrealizowanych, 42% procedowanych, 8% sprzecznych), wyliczony na podstawie bazy danych. W katalogu widocznych jest 12 zweryfikowanych deklaracji wyborczych z oznaczeniem `Sejm X Kadencja` oraz realnymi wycenami OSR (np. 35 mld zł, 12,8 mld zł, 8,9 mld zł).
+
+![Big Picture Dashboard & Katalog (Wersja Produkcyjna)](screenshots/02_landing_full_catalog.png)
 
 ### 4.3. Karta Szczegółów Obietnicy – Audyt Normatywny AI & Oś Czasu
-Szczegółowy audyt deklaracji `KO-100K-042` (Kwota wolna od podatku 60 tys. zł): ocena zgodności ("CZĘŚCIOWO ZGODNA", pewność 89%), model RAG + Gemini, koszt OSR (35 mld zł), zidentyfikowane luki prawne oraz 4-etapowa oś czasu legislacji (Time-to-Delivery).
+Szczegółowy audyt deklaracji `KO-100K-042` (Kwota wolna od podatku 60 tys. zł): ocena zgodności ("CZĘŚCIOWO ZGODNA", pewność 89%), model RAG + Gemini, koszt OSR (35 mld zł, Druk Sejmowy Nr 341), zidentyfikowane luki prawne oraz 4-etapowa oś czasu legislacji (Time-to-Delivery).
 
 ![Szczegóły Obietnicy i Audyt RAG](screenshots/03_promise_detail_evaluation.png)
 
-### 4.4. Obywatelski Rejestr Posłów – "Sprawdź Posła"
-Katalog parlamentarzystów X kadencji Sejmu RP z filtrowaniem według klubów (KO, PiS, Trzecia Droga, Lewica, Konfederacja, Razem), wyszukiwarką imienną oraz licznikami złożonych interpelacji.
+### 4.4. Obywatelski Rejestr Posłów – "Sprawdź Posła" (499 Posłów z API Sejmu)
+Katalog parlamentarzystów X kadencji Sejmu RP zasilony bezpośrednio z bazy danych (499 posłów pobranych z Sejm OpenAPI, m.in. Mirosław Adam Orliński, Andrzej Adamczyk, Piotr Adamowicz, Krzysztof Bosak, Donald Tusk, Barbara Bartuś) z filtrami klubowymi i kartami poselskimi.
 
-![Sprawdź Posła – Rejestr](screenshots/04_mps_directory.png)
+![Sprawdź Posła – Rejestr (Dane z API Sejmu RP)](screenshots/04_mps_directory.png)
 
 ### 4.5. Profil Posła – Heatmapa Aktywności i Lojalności Klubowej
-Karta profilowa posła (Szymon Hołownia) z wizualizacją posiedzeń sejmowych w stylu GitHub Contribution Grid, wskaźnikiem frekwencji (100%), lojalności klubowej (97%) oraz sumą oddanych głosów (420).
+Karta profilowa posła (Andrzej Adamczyk) z wizualizacją posiedzeń sejmowych w stylu Contribution Grid, wskaźnikiem frekwencji (100%), lojalności klubowej (100%) oraz historią oddanych głosów na posiedzeniach Sejmu RP.
 
-![Profil Posła i Heatmapa](screenshots/05_mp_profile_detail.png)
+![Profil Posła i Heatmapa (Dane na Żywo)](screenshots/05_mp_profile_detail.png)
 
 ### 4.6. Wersja Mobilna (Responsive Web Design – 390px)
-Weryfikacja zachowania interfejsu na urządzeniach mobilnych (iPhone viewport 390x844). Układ kaskadowy, czytelne typografie i pełna dostępność elementów dotykowych.
+Weryfikacja zachowania interfejsu produkcyjnego na urządzeniach mobilnych (iPhone viewport 390x844). Układ kaskadowy, czytelne typografie, dynamiczne badge produkcyjne i pełna dostępność elementów dotykowych.
 
-![Wersja Mobilna](screenshots/06_mobile_landing_view.png)
+![Wersja Mobilna (Wersja Produkcyjna)](screenshots/06_mobile_landing_view.png)
 
 ---
 

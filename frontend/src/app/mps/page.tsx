@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   User,
@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { SHOWCASE_MPS_LIST } from "@/lib/showcaseData";
+import { api, type MPProfile } from "@/lib/api";
 import { SubscribeButton } from "@/components/SubscribeButton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
@@ -31,9 +32,25 @@ const CLUBS = [
 export default function MPsDirectoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClub, setSelectedClub] = useState("ALL");
+  const [mpsList, setMpsList] = useState<MPProfile[]>(SHOWCASE_MPS_LIST);
+  const isDemo = process.env.NEXT_PUBLIC_IS_DEMO === "true";
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getMPs({ limit: 100 }).then((res) => {
+      if (isMounted && res.items && res.items.length > 0) {
+        setMpsList(res.items);
+      }
+    }).catch(() => {
+      // Fallback zachowany w stanie domyślnym
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredMPs = useMemo(() => {
-    return SHOWCASE_MPS_LIST.filter((mp) => {
+    return mpsList.filter((mp) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const fullName = `${mp.first_name} ${mp.last_name}`.toLowerCase();
@@ -50,7 +67,7 @@ export default function MPsDirectoryPage() {
 
       return true;
     });
-  }, [searchQuery, selectedClub]);
+  }, [mpsList, searchQuery, selectedClub]);
 
   return (
     <div className="space-y-8 pb-16">
@@ -61,9 +78,15 @@ export default function MPsDirectoryPage() {
             <Users className="h-3.5 w-3.5" />
             Sejm RP X Kadencja • Baza Parlamentarzystów
           </span>
-          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-            Demo • Mock Data po ETL
-          </span>
+          {isDemo ? (
+            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+              Demo • Mock Data po ETL
+            </span>
+          ) : (
+            <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+              Baza na żywo • API Sejmu RP ({mpsList.length} posłów)
+            </span>
+          )}
         </div>
 
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
@@ -145,9 +168,15 @@ export default function MPsDirectoryPage() {
                         <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{mp.club}</p>
                       </div>
                     </div>
-                    <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-300/80 border border-amber-500/20">
-                      Mock ETL
-                    </span>
+                    {isDemo ? (
+                      <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-300/80 border border-amber-500/20">
+                        Mock ETL
+                      </span>
+                    ) : (
+                      <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-300/80 border border-emerald-500/20">
+                        Poseł X Kadencji
+                      </span>
+                    )}
                   </div>
                 </CardHeader>
 

@@ -71,14 +71,24 @@ export function PromisesCatalog({ initialPromises = [] }: PromisesCatalogProps) 
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
               {isFiltering ? "Wyniki Wyszukiwania" : "Katalog Deklaracji Wyborczych"}
             </h2>
-            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-              Demo • Mock Data po ETL
-            </span>
+            {process.env.NEXT_PUBLIC_IS_DEMO === "true" ? (
+              <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                Demo • Mock Data po ETL
+              </span>
+            ) : (
+              <span className="rounded border border-indigo-500/40 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+                Złota Baza • Sejm RP X Kadencji
+              </span>
+            )}
           </div>
           <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            {isFiltering
-              ? `Znaleziono ${totalCount} obietnic spełniających kryteria filtrów (przykładowy zbiór demonstracyjny)`
-              : `Zestaw demonstracyjny 12 przykładowych obietnic ilustrujących klasyfikację RAG i statusy po załadowaniu danych przez ETL.`}
+            {process.env.NEXT_PUBLIC_IS_DEMO === "true"
+              ? isFiltering
+                ? `Znaleziono ${totalCount} obietnic spełniających kryteria filtrów (przykładowy zbiór demonstracyjny)`
+                : `Zestaw demonstracyjny 12 przykładowych obietnic ilustrujących klasyfikację RAG i statusy po załadowaniu danych przez ETL.`
+              : isFiltering
+                ? `Znaleziono ${totalCount} obietnic spełniających kryteria filtrów z bazy danych`
+                : `Zestaw 12 zweryfikowanych deklaracji wyborczych poddanych analizie prawnej RAG względem druków sejmowych i RCL.`}
           </p>
         </div>
       </div>

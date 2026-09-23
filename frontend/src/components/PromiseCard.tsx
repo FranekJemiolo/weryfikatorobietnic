@@ -142,9 +142,15 @@ export function PromiseCard({
             <span className="text-xs text-slate-400 font-medium">
               {category}
             </span>
-            <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300/80 border border-amber-500/20">
-              Mock ETL
-            </span>
+            {process.env.NEXT_PUBLIC_IS_DEMO === "true" ? (
+              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300/80 border border-amber-500/20">
+                Mock ETL
+              </span>
+            ) : (
+              <span className="rounded bg-slate-800/80 px-1.5 py-0.5 text-[10px] font-medium text-slate-300 border border-slate-700/60">
+                Sejm X Kadencja
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <SubscribeButton

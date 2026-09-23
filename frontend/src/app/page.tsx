@@ -59,6 +59,28 @@ async function getPromises(): Promise<PromiseListItem[]> {
   }
 }
 
+async function getAnalytics() {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!baseUrl || process.env.NEXT_EXPORT === "true") {
+    return SHOWCASE_ANALYTICS;
+  }
+
+  try {
+    const res = await fetch(`${baseUrl}/api/v1/analytics/summary`, {
+      next: { revalidate: 60 },
+    });
+
+    if (!res.ok) {
+      return SHOWCASE_ANALYTICS;
+    }
+
+    const data = await res.json();
+    return data || SHOWCASE_ANALYTICS;
+  } catch {
+    return SHOWCASE_ANALYTICS;
+  }
+}
+
 /**
  * Strona główna — Landing Page + Dashboard Obywatelski
  *
@@ -70,7 +92,7 @@ async function getPromises(): Promise<PromiseListItem[]> {
  *   5. ContributeSection– sekcja open-source / jak dołączyć (#contribute)
  */
 export default async function HomePage() {
-  const promises = await getPromises();
+  const [promises, analytics] = await Promise.all([getPromises(), getAnalytics()]);
 
   return (
     <div className="space-y-0">
@@ -82,7 +104,7 @@ export default async function HomePage() {
 
       {/* 2. Government Score Dashboard */}
       <section id="dashboard" className="py-12 scroll-mt-20">
-        <GovernmentScoreDashboard initialData={SHOWCASE_ANALYTICS} />
+        <GovernmentScoreDashboard initialData={analytics} />
       </section>
 
       {/* Divider */}
